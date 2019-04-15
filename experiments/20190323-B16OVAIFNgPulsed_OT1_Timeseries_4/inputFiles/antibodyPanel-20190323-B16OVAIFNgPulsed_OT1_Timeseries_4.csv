@@ -1,0 +1,10 @@
+﻿Location,Marker,Clone,FCSDetectorName,inventoryNumber,Live efficacy,F/P efficacy,Dilution
+TCell,CD25,PC61,PerCP-Cy5-5-A,56,+++,+++,"""1:300"
+APC,CD86,GL-1,FITC-A,266,+++,+++,"""1:300"
+APC,PDL1,10F.9G2,BV605-A,506,+++,+++,"""1:300"
+TCell,CD27,LG.3A10,PE-CF594-A,298,None,None,"""1:300"
+TCell,CD54,YN1/1.7.4,PE-Cy7-A,310,None,None,"""1:300"
+APC,H2Kb,,PE ( 561 )-A,248,,,
+TCell,CD69,30-F11,BUV737-A,61,,,
+Tcell,CTV,,BV421-A,,,,
+APC,CTFR,,APC-A,,,,
