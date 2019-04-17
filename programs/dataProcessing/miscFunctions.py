@@ -45,7 +45,8 @@ def r_squared(xdata,ydata,func,popt):
 
 #Sample_A2_A02_002.fcs,
 def cleanUpFlowjoCSV(fileArray,folderName,dataType):
-    sampleIDOrder = True
+    sampleIDOrder = False
+    #Samples will be indexed based on well ID (A01, then A02 etc.)
     if not sampleIDOrder:
         orderWellID = {}
         plateColumnList = list(range(1,13))
@@ -62,12 +63,14 @@ def cleanUpFlowjoCSV(fileArray,folderName,dataType):
             temp = pd.read_csv('semiProcessedData/'+str(name)+'_'+dataType+'.csv')
             for i in range(0,temp.shape[0]):
                 if '_' in temp.iloc[i,0]:
-                    wellID = temp.iloc[i,0].split('_')[1]
+                    wellID = temp.iloc[i,0].split('_')[2]
                 else:
                     wellID = temp.iloc[i,0]
+                print(wellID)
                 temp.iloc[i,0] = orderWellID[wellID]
             temp = temp.sort_values('Unnamed: 0')
             sortedData.append(temp[:-2])
+    #Samples will be indexed based on order of acqusition (sample001 then sample002 etc.)
     else:
         sortedData = []
         for name in fileArray:
