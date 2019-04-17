@@ -183,13 +183,3 @@ def createParameters(folderName,numConditions,numTimePoints,showOldHeatMap):
     experimentParameters = [[numConditions,numTimePoints],conditionLevelsArray,nestedConditionLabelsArray,timeArray,plateNameArray,manualFill == 'y',paired == 'y',contiguous == 'y',replicateWise =='y']
     with open('inputFiles/experimentParameters-'+folderName+'.json','w') as f:
         json.dump(experimentParameters, f)
-"""
-secondPath = '../output/'
-#folderName = '20190116-ITAMDeficient_OT1_Timeseries_5'
-folderName = '20190207-B16OVAIFNgPulsed_OT1_Timeseries_1'
-os.chdir('../experiments/'+folderName+'/')
-experimentNumber = 82
-numConditions = 16
-numTimePoints = 6
-createParameters(folderName,numConditions,numTimePoints,False)
-"""

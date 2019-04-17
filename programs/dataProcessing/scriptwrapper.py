@@ -88,6 +88,7 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgro
             expIndex = expNum - 1
             folderName = ex_data['Full Name'][expIndex]
             researcherName = ex_data['Researcher'][expIndex]
+            """
             if(researcherName != 'Sooraj'):
                 if scriptToRun != 1:
                     os.chdir('../../../'+researcherName+'/experiments/'+folderName)
@@ -98,6 +99,9 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgro
                     os.chdir('../../experiments/'+folderName)
                 else:
                     os.chdir('../../experiments')
+            """
+            os.chdir('../../experiments/'+folderName)
+            print(os.getcwd())
             if(int(scriptToRun/100.) == 0): #Initial data processing
                 if(scriptToRun == 1):
                     print('Setting up experiment for: '+str(folderName))
@@ -203,10 +207,9 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgro
                             subPlotType = 'kde'
 
                         print('Creating '+subPlotType+'plots for: '+str(folderName))
-                        fpl.facetPlottingGUI(dfArray[dfKey],plotType)
+                        fpl.facetPlottingGUI(dfArray[dfKey],plotType,dataType)
                         subsettedDfList,subsettedDfListTitles,levelsToPlot,figureLevels,levelValuesPlottedIndividually = fpl.produceSubsettedDataFrames(folderName,secondPath,dfArray[dfKey],useModifiedDf)
-                        legendParameterToLevelNameDict = fpl.assignParametersToLevels(subsettedDfList[0],levelsToPlot,plotType)
-                        fpl.plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,legendParameterToLevelNameDict,figureLevels,levelValuesPlottedIndividually,useModifiedDf)
+                        fpl.plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually,useModifiedDf)
                 if(scriptToRun == 105): #Single Stain histograms
                     print('Creating Heatmaps for: '+str(folderName)) 
                     print(os.getcwd())

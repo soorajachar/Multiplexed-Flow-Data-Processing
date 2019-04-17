@@ -15,15 +15,17 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 import pickle,os,math,sys,itertools,re
-from matplotlib.widgets import RadioButtons,Button,CheckButtons
+from matplotlib.widgets import RadioButtons,Button,CheckButtons,TextBox
 sys.path.insert(0, '../dataProcessing/')
 from miscFunctions import sortSINumerically
 import subprocess
 plt.switch_backend('QT4Agg') #default on my system
 
-def facetPlottingGUI(df,plotType):
+def facetPlottingGUI(df,plotType,dataType):
+    
     fulldf = df.stack()
     
+    #Button width conserved across gui figures
     buttonWidth = 0.1/2
     buttonLength = 0.075/2
     buttonXStart = 0.5-(0.01+buttonWidth)
@@ -35,11 +37,10 @@ def facetPlottingGUI(df,plotType):
         levelName = fulldf.index.levels[i].name
         labelDict[levelName] = list(pd.unique(fulldf.index.get_level_values(levelName)))
 
-    #Grab within figure boolean data
+    #Grab levels that will be used within a figure
     fig = plt.figure()
     plt.axis('off')
 
-    #Grab levels that will be used within a figure
     #plt.text(0.5, 1,'Which levels names do you want to\nbe included within this figure?',transform=plt.gca().transAxes,ha='center')
     rax = plt.axes([0.4, 0.5, 0.05*len(labelDict.keys()),0.05*len(labelDict.keys())])
     check = CheckButtons(rax, labelDict.keys(),actives=[True]*len(labelDict.keys()))
@@ -49,21 +50,20 @@ def facetPlottingGUI(df,plotType):
     rax.spines['right'].set_visible(False)
     rax.spines['top'].set_visible(False)
 
-    class Index(object):
-        def OK(self, event):
+    class GUIButtons(object):
+        def OKcheck1(self, event):
             withinFigureBoolean = check.get_status()
             plt.close()
-            print(withinFigureBoolean)
-            with open('semiProcessedData/wfBool.pkl','wb') as f:
+            with open('semiProcessedData/gui-wfBool.pkl','wb') as f:
                 pickle.dump(withinFigureBoolean,f)
         def Quit(self, event):
             sys.exit(0)    
 
-    callback = Index()
+    callback = GUIButtons()
     axOK = plt.axes([buttonXStart, buttonYStart, buttonWidth, buttonLength])
     axQuit = plt.axes([buttonXStart+buttonWidth+0.01,buttonYStart, buttonWidth, buttonLength])
     bOK = Button(axOK, 'OK')
-    bOK.on_clicked(callback.OK)
+    bOK.on_clicked(callback.OKcheck1)
     bQuit = Button(axQuit, 'Quit')
     bQuit.on_clicked(callback.Quit)
     plt.show()
@@ -73,13 +73,11 @@ def facetPlottingGUI(df,plotType):
         if len(labelDict[labelName]) > maxLabelLength:
             maxLabelLength = len(labelDict[labelName])
     fig = plt.figure()
-    #fig = plt.figure(figsize=(maxLabelLength*0.6,2*len(labelDict.keys())))
     plt.axis('off')
     plt.text(0.5, 1.1,'Which specific level values do you want to include in the figure?',transform=plt.gca().transAxes,ha='center')
     i=0
     checkbuttons = []
     for levelName in labelDict:
-        #rax2 = plt.axes([0.2+0.15*i, 0.1, 0.15,0.1*len(labelDict[levelName])])
         rectLength = 0.1*len(labelDict[levelName])
         rectWidth = (1- (0.02+0.01*len(labelDict.keys())))/len(labelDict.keys()) 
         if rectLength > 0.8:
@@ -93,22 +91,22 @@ def facetPlottingGUI(df,plotType):
         checkbuttons.append(CheckButtons(rax2,labelDict[levelName],actives=[True]*len(labelDict[levelName])))
         i+=1
 
-    class Index2(object):
-        def OK(self, event):
+    class GUIButtons2(object):
+        def OKcheck2(self, event):
             specificValueBooleanList = []
             for checkbutton in checkbuttons:
                 specificValueBooleanList.append(checkbutton.get_status())
             plt.close()
-            with open('semiProcessedData/svBoolList.pkl','wb') as f:
+            with open('semiProcessedData/gui-svBoolList.pkl','wb') as f:
                 pickle.dump(specificValueBooleanList,f)
         def Quit(self, event):
             sys.exit(0)    
 
-    callback = Index2()
+    callback = GUIButtons2()
     axOK = plt.axes([buttonXStart, buttonYStart, buttonWidth, buttonLength])
     axQuit = plt.axes([buttonXStart+buttonWidth+0.01,buttonYStart, buttonWidth, buttonLength])
     bOK = Button(axOK, 'OK')
-    bOK.on_clicked(callback.OK)
+    bOK.on_clicked(callback.OKcheck2)
     bQuit = Button(axQuit, 'Quit')
     bQuit.on_clicked(callback.Quit)
     figManager = plt.get_current_fig_manager()
@@ -127,15 +125,13 @@ def facetPlottingGUI(df,plotType):
     else:
         parameterTypes = ['Marker','Color','Size','Row','Column','X Axis Values']
 
-    withinFigureBoolean = pickle.load(open('semiProcessedData/wfBool.pkl','rb'))
+    withinFigureBoolean = pickle.load(open('semiProcessedData/gui-wfBool.pkl','rb'))
     selectedLevels = []
-    print('wfbool')
-    print(withinFigureBoolean)
     for levelName,index in zip(labelDict,range(len(withinFigureBoolean))):
         if withinFigureBoolean[index]:
             selectedLevels.append(levelName)
 
-    fig = plt.figure(figsize=(2*len(selectedLevels),0.75*len(parameterTypes)))
+    fig = plt.figure(figsize=(2*len(selectedLevels),0.45*len(parameterTypes)))
     plt.axis('off')
     plt.text(0.5, 1.1,'Which plotting parameters do you want to assign to your figure levels?',transform=plt.gca().transAxes,ha='center')
     i=0
@@ -152,32 +148,156 @@ def facetPlottingGUI(df,plotType):
         plt.text(0.5, 1.01,levelName,ha='center',transform=plt.gca().transAxes)
         radiobuttons.append(RadioButtons(rax3,parameterTypes,activecolor='black'))
         i+=1
-    print(selectedLevels)
-
-    class Index3(object):
-        def OK(self, event):
+    
+    class GUIButtons3(object):
+        def OKradio3(self, event):
             radioValues = {}
             for radiobutton,levelName in zip(radiobuttons,selectedLevels):
                 radioValues[radiobutton.value_selected] = levelName
             plt.close()
-            with open('semiProcessedData/radioVals.pkl','wb') as f:
+            with open('semiProcessedData/gui-radioVals.pkl','wb') as f:
                 pickle.dump(radioValues,f)
         def Quit(self, event):
             sys.exit(0)    
 
-    callback = Index3()
+    callback = GUIButtons3()
     axOK = plt.axes([buttonXStart, buttonYStart, buttonWidth, buttonLength])
     axQuit = plt.axes([buttonXStart+buttonWidth+0.01,buttonYStart, buttonWidth, buttonLength])
     bOK = Button(axOK, 'OK')
-    bOK.on_clicked(callback.OK)
+    bOK.on_clicked(callback.OKradio3)
+    bQuit = Button(axQuit, 'Quit')
+    bQuit.on_clicked(callback.Quit)
+    plt.show()
+    
+    #Ask scale to use for axes (both y and x if relplot; only y if categorical)
+    if plotType == 'categorical' or plotType == 'frequency':
+        axes = ['Y Axis']
+    else:
+        axes = ['X Axis','Y Axis']
+    constantAxes = ['X Axis','Y Axis']
+
+    axisScalingOptions = ['Linear','Logarithmic','Biexponential']
+
+    fig = plt.figure(figsize=(8,2.5*len(axisScalingOptions)))
+    plt.axis('off')
+    radiobuttons = []
+    axis_title_text_boxes = {}
+    lin_thresh_text_boxes = {}
+    for axis,i in zip(constantAxes,range(len(constantAxes))):
+        #Add axis scaling radio buttons
+        rectLength = 0.15*len(axisScalingOptions)
+        rectWidth = (1- (0.02+0.01*len(constantAxes)))/len(constantAxes)
+        
+        rax3 = plt.axes([0.01*(i+1)+rectWidth*i, 0.94-(buttonWidth+rectLength), rectWidth,rectLength])
+        plt.text(0.5, 1.01,axis,ha='center',transform=plt.gca().transAxes)
+        rax3.spines['bottom'].set_visible(False)
+        rax3.spines['left'].set_visible(False)
+        rax3.spines['right'].set_visible(False)
+        plt.tick_params(which='both',bottom=False,top=False,left=False,right=False,labelbottom=False,labeltop=False,labelleft=False,labelright=False)
+        if(axis == 'X Axis'):
+            if(len(constantAxes) == len(axes)):
+                radiobuttons.append(RadioButtons(rax3,axisScalingOptions,activecolor='black'))
+        else:
+            radiobuttons.append(RadioButtons(rax3,axisScalingOptions,activecolor='black'))
+
+        #Determine initial axis title for textboxes
+        if 'Y' in axis:
+            if dataType == 'cyt':
+                initial_name = 'Concentration (nM)'
+            else:
+                if plotType == 'frequency':
+                    initial_name = 'Count'
+                else:
+                    initial_name = ' '
+        else:
+            if plotType == 'ordered':
+                radioValues = pickle.load(open('semiProcessedData/gui-radioVals.pkl','rb'))
+                initial_name = radioValues['X Axis Values']
+            elif plotType == 'frequency':
+                initial_name = 'GFI'
+            else:
+                radioValues = pickle.load(open('semiProcessedData/gui-radioVals.pkl','rb'))
+                initial_name = radioValues['Order']
+        
+        #Add in axis title text boxes
+        axbox = plt.axes([0.1+0.5*i, 0.25, 0.35, 0.075])
+        text_box = TextBox(axbox, 'Title: ', initial=initial_name)
+        axis_title_text_boxes[axis] = text_box
+        
+        #Add in linear threshold (for biexponential scaling) textboxes
+        if(axis == 'X Axis'):
+            if(len(constantAxes) == len(axes)):
+                linthreshbox = plt.axes([0.1+0.5*i, 0.35, 0.35, 0.075])
+                text_box2 = TextBox(linthreshbox, 'Linear  \nThreshold: ', initial=' ')
+                lin_thresh_text_boxes[axis] = text_box2
+        else:
+            linthreshbox = plt.axes([0.1+0.5*i, 0.35, 0.35, 0.075])
+            text_box2 = TextBox(linthreshbox, 'Linear  \nThreshold: ', initial=' ')
+            lin_thresh_text_boxes[axis] = text_box2
+   
+    if plotType == 'ordered':
+        checkbuttons = []
+        rax2 = plt.axes([0.05,0.09,0.15,0.15])
+        rax2.spines['bottom'].set_visible(False)
+        rax2.spines['left'].set_visible(False)
+        rax2.spines['right'].set_visible(False)
+        rax2.spines['top'].set_visible(False)
+        checkbuttons.append(CheckButtons(rax2,['Sort X numerically'],actives=[False]))
+    
+    linThresholdValues = {}
+    axisTitleValues = {'X Axis':initial_name,'Y Axis':' '}
+    def submitAxisTitleX(text):
+        axisTitleValues['X Axis'] = text
+    def submitAxisTitleY(text):
+        axisTitleValues['Y Axis'] = text
+    axis_title_text_boxes['X Axis'].on_submit(submitAxisTitleX)
+    axis_title_text_boxes['Y Axis'].on_submit(submitAxisTitleY)
+    
+    def submitLinThresholdX(text):
+        linThresholdValues['X Axis'] = float(text)
+    def submitLinThresholdY(text):
+        linThresholdValues['Y Axis'] = float(text)
+    if(len(constantAxes) == len(axes)):
+        lin_thresh_text_boxes['X Axis'].on_submit(submitLinThresholdX)
+        lin_thresh_text_boxes['Y Axis'].on_submit(submitLinThresholdY)
+    else:
+        lin_thresh_text_boxes['Y Axis'].on_submit(submitLinThresholdY)
+
+    class GUIButtons4(object):
+        def OKradiotext4(self, event):
+            plotOptions = {}
+            radioValues = {}
+            for radiobutton,axis in zip(radiobuttons,axes):
+                radioValues[axis] = radiobutton.value_selected
+            if plotType == 'ordered':
+                numericXBoolean = checkbuttons[0].get_status()
+                plotOptions['numericX'] = numericXBoolean
+            else:
+                plotOptions['numericX'] = False
+            plt.close()
+            plotOptions['axisScaling'] = radioValues
+            plotOptions['linThreshold'] = linThresholdValues
+            plotOptions['axisTitles'] = axisTitleValues
+            print(plotOptions)
+            print(os.getcwd())
+            with open('semiProcessedData/gui-plotOptions.pkl','wb') as f:
+                pickle.dump(plotOptions,f)
+        def Quit(self, event):
+            sys.exit(0)    
+
+    callback = GUIButtons4()
+    axOK = plt.axes([buttonXStart, buttonYStart, buttonWidth, buttonLength])
+    axQuit = plt.axes([buttonXStart+buttonWidth+0.01,buttonYStart, buttonWidth, buttonLength])
+    bOK = Button(axOK, 'OK')
+    bOK.on_clicked(callback.OKradiotext4)
     bQuit = Button(axQuit, 'Quit')
     bQuit.on_clicked(callback.Quit)
     plt.show()
 
 def produceSubsettedDataFrames(folderName,secondPath,df,useModifiedDf):
     
-    withinFigureBoolean = pickle.load(open('semiProcessedData/wfBool.pkl','rb'))
-    specificValueBooleanList = pickle.load(open('semiProcessedData/svBoolList.pkl','rb'))
+    withinFigureBoolean = pickle.load(open('semiProcessedData/gui-wfBool.pkl','rb'))
+    specificValueBooleanList = pickle.load(open('semiProcessedData/gui-svBoolList.pkl','rb'))
 
     #Load in dataframe for experiment
     #fulldf = np.log10(df)
@@ -262,36 +382,10 @@ def produceSubsettedDataFrames(folderName,secondPath,df,useModifiedDf):
 
     return subsettedDfList,subsettedDfListTitles,withinFigureLevels,figureLevels,levelValuesPlottedIndividually
 
-def assignParametersToLevels(df,levelsToPlot,plotType):
-
-    legendParameterToLevelNameDict = pickle.load(open('semiProcessedData/radioVals.pkl','rb'))
-    subprocess.run(['rm','semiProcessedData/radioVals.pkl'])
-    subprocess.run(['rm','semiProcessedData/svBoolList.pkl'])
-    subprocess.run(['rm','semiProcessedData/wfBool.pkl'])
-    return legendParameterToLevelNameDict
-
-def changeLevelNamesForPlotting(plottingDf,plotType,dataType,subsettedDfTitle,legendParameterToLevelNameDict,figureParameters,kwargs):
-    if plotType == 'ordered':
-        if legendParameterToLevelNameDict['X Axis Values'] == 'Time':
-            kwargs['x'] = 'Time (hours)'
-            plottingDf.index.set_names('Time (hours)',level='Time',inplace=True)
-    elif legendParameterToLevelNameDict['Order'] == 'Time':
-        kwargs['x'] = 'Time (hours)'
-        #kwargs['order'] = list(pd.unique(subsettedDf.index.get_level_values('Time')))
-        plottingDf.index.set_names('Time (hours)',level='Time',inplace=True)
-    if dataType == 'cyt':
-        plottingDf.columns = ['Concentration (nM)']
-        kwargs['y'] = 'Concentration (nM)'
-    else:
-        if 'Statistic' in figureParameters:
-            plottingDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
-            kwargs['y'] = subsettedDfTitle[figureParameters.index('Statistic')]
-    return plottingDf,kwargs
-
-def createFacePlotName(folderName,dataType,plotType,subPlotType,legendParameterToLevelNameDict,subsettedDfTitle,levelsPlottedIndividually,useModifiedDf):
+def createFacetPlotName(folderName,dataType,plotType,subPlotType,legendParameterToLevelNameDict,subsettedDfTitle,levelsPlottedIndividually,useModifiedDf,axisScaling):
     delimiter1 = '-'
     delimiter2 = ','
-    
+   
     legendParameterString = delimiter2.join(list(legendParameterToLevelNameDict.keys()))
     levelNameString = delimiter2.join(list(legendParameterToLevelNameDict.values()))
     figureLevelNameString = delimiter2.join(subsettedDfTitle)
@@ -305,17 +399,40 @@ def createFacePlotName(folderName,dataType,plotType,subPlotType,legendParameterT
     else:
         modifiedString = ''
 
+    axisScalingStringList = []
+    for axis in axisScaling:
+        if 'X' in axis:
+            if axisScaling[axis] == 'Logarithmic':
+                axisScalingStringList.append('logX')
+            elif axisScaling[axis] == 'Biexponential':
+                axisScalingStringList.append('biexpX')
+            else:
+                axisScalingStringList.append('linX')
+        else:
+            if axisScaling[axis] == 'Logarithmic':
+                axisScalingStringList.append('logY')
+            elif axisScaling[axis] == 'Biexponential':
+                axisScalingStringList.append('biexpY')
+            else:
+                axisScalingStringList.append('linY')
+    axisScalingString = delimiter2.join(axisScalingStringList)
+
     if len(subsettedDfTitle) == 0:
-        initialString = delimiter1.join([subPlotType,dataType,folderName,legendParameterString,levelNameString,individualLevelString])
+        initialString = delimiter1.join([subPlotType,dataType,folderName,legendParameterString,levelNameString,axisScalingString])
     else:
-        initialString = delimiter1.join([subPlotType,dataType,folderName,legendParameterString,levelNameString,individualLevelString,figureLevelNameString])
+        initialString = delimiter1.join([subPlotType,dataType,folderName,legendParameterString,levelNameString,figureLevelNameString,axisScalingString])
     fullTitleString = initialString+modifiedString
     return fullTitleString
 
-def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,legendParameterToLevelNameDict,figureParameters,levelsPlottedIndividually,useModifiedDf):
-    print(legendParameterToLevelNameDict)
+def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureParameters,levelsPlottedIndividually,useModifiedDf):
+    legendParameterToLevelNameDict = pickle.load(open('semiProcessedData/gui-radioVals.pkl','rb'))
+    plotOptions = pickle.load(open('semiProcessedData/gui-plotOptions.pkl','rb'))
+    
+    subprocess.run(['rm','semiProcessedData/gui-*.pkl'])
+    
     #Has issues with repeated values (aka CD54 shows up in TCells and APCs) 
     for subsettedDf,subsettedDfTitle in zip(subsettedDfList,subsettedDfListTitles):
+        #Assign all levels to plot parameters in catplot/relplot; reassign x/y axis level names to desired x/y axis titles
         kwargs = {}
         for parameter in legendParameterToLevelNameDict:
             currentLevel = legendParameterToLevelNameDict[parameter]
@@ -326,8 +443,8 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
             elif parameter == 'Marker':
                 kwargs['style'] = currentLevel
             elif parameter == 'Order':
-                kwargs['x'] = currentLevel
-                kwargs['order'] = list(pd.unique(subsettedDf.index.get_level_values(currentLevel)))
+                subsettedDf.index.set_names(plotOptions['axisTitles']['X Axis'],level=currentLevel,inplace=True)
+                kwargs['x'] = plotOptions['axisTitles']['X Axis']
             elif parameter == 'Column':
                 kwargs['col'] = currentLevel
                 unorderedLevelValues = list(pd.unique(subsettedDf.index.get_level_values(currentLevel)))
@@ -345,23 +462,42 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                     levelValues = unorderedLevelValues
                 kwargs['row_order'] = levelValues
             elif parameter == 'X Axis Values':
-                #kwargs['x'] = currentLevel
-                kwargs['x'] = 'Time (hrs)' 
-                #kwargs['x'] = 'IFNg Pulse Concentration (nM)' 
-
-        fullTitleString = createFacePlotName(folderName,dataType,plotType,subPlotType,legendParameterToLevelNameDict,subsettedDfTitle,levelsPlottedIndividually,useModifiedDf)
-        plottingDf,kwargs = changeLevelNamesForPlotting(subsettedDf,plotType,dataType,subsettedDfTitle,legendParameterToLevelNameDict,figureParameters,kwargs)
+                subsettedDf.index.set_names(plotOptions['axisTitles'][0],level=currentLevel,inplace=True)
+                kwargs['x'] = plotOptions['axisTitles']['X Axis']
+        #Assign y axis parameter
+        if 'Statistic' in figureParameters:
+            subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
+            kwargs['y'] = subsettedDfTitle[figureParameters.index('Statistic')]
+        else:
+            plotOptions['axisTitles']['Y Axis']
+            subsettedDf.columns = [plotOptions['axisTitles']['Y Axis']]
+            kwargs['y'] = plotOptions['axisTitles']['Y Axis']
+        
+        plottingDf = subsettedDf.copy()
+        #Converts wide form dataframe into long form required for cat/relplot
         plottingDf = plottingDf.reset_index()
-        if folderName == '20190323-B16OVAIFNgPulsed_OT1_Timeseries_4':
-            currentLevelValues = list(subsettedDf.index.get_level_values('IFNgPulseConcentration'))
+        #Use plot options file to initialize plot parameters: axis scaling, numeric x axis ordering
+        #Numeric X Axis Ordering
+        if plotOptions['numericX']:
+            currentLevelValues = list(plottingDf[kwargs['x']])
             sortedOldLevelValues,newLevelValues = sortSINumerically(currentLevelValues,False,True)
-            scaledNewLevelValues = [float(i) * float(1e9) for i in newLevelValues]
-            concDf = pd.DataFrame({'IFNg Pulse Concentration (nM)':scaledNewLevelValues})
-            plottingDf = pd.concat([plottingDf,concDf],axis=1)
+            #Need to interpret parenthetical units for x to get 1e9
+            if 'M)' in kwargs['x']:
+                s = kwargs['x']
+                units = '1'+s[s.find("(")+1:s.find(")")] 
+                scaledSortedUnits,sortedUnits = sortSINumerically([units],False,True)
+            else:
+                sortedUnits = [1]
+            scaledNewLevelValues = [float(i) / float(sortedUnits[0]) for i in newLevelValues]
+            plottingDf[kwargs['x']] = scaledNewLevelValues
+            if plotType == 'categorical':
+                kwargs['order'] = scaledNewLevelValues
+        else:
+            kwargs['order'] = list(pd.unique(subsettedDf.index.get_level_values(kwargs['x'])))
+            print(kwargs['order'])
+
+        #Plot data using kwargs; uses catplot for categorical data and relplot for numeric data and a facet grid with a distplot for frequency data (histograms)
         if plotType == 'categorical':
-            print(plottingDf['Concentration (nM)'])
-            plottingDf['Concentration (nM)'] = np.log10(plottingDf['Concentration (nM)'])
-            print(plottingDf['Concentration (nM)'])
             ax = sns.catplot(**kwargs,data=plottingDf,kind=subPlotType)
         elif plotType == 'frequency':
             gfiDf = pd.DataFrame({'GFI':df.values.ravel()})
@@ -381,24 +517,28 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 plottingDf = pd.concat([plottingDf,styleDf],axis=1)
                 kwargs['style'] = '.'
             ax = sns.relplot(**kwargs,data=plottingDf,markers=True,kind=subPlotType)
-        if dataType == 'cyt' or 'GFI' in subsettedDfTitle:
-            if 'GFI' in subsettedDfTitle:
-                print('holeefuk')
-                ax.fig.get_axes()[0].set_yscale('symlog',linthreshx=10)
+        #Axis Scaling
+        for axis in plotOptions['axisScaling']:
+            if 'Y' in axis:
+                if plotOptions['axisScaling'][axis] == 'Logarithmic':
+                    ax.fig.get_axes()[0].set_yscale('log')
+                elif plotOptions['axisScaling'][axis] == 'Biexponential':
+                    ax.fig.get_axes()[0].set_yscale('symlog',linthreshx=plotOptions['linThreshold'][axis])
+                else:
+                    pass
             else:
-                print('wat')
-                print(kwargs)
-                #plt.semilogy(nonposy='clip')
-                #ax.fig.get_axes()[0].set_yscale('log')
-                #symlogfloor = 10**(math.floor(np.log10(np.amin(plottingDf['Concentration (nM)']))))
-                #print(symlogfloor)
-                #ax.fig.get_axes()[0].set_yscale('symlog',linthreshx=symlogfloor)
-        if dataType == 'ordered' and 'Concentration' in kwargs['x']:
-            print('wat2')
-            ax.fig.get_axes()[0].set_xscale('symlog',linthreshx=1e-4)
-        #ax.fig.get_axes()[0].set_xscale('symlog',linthreshx=1e-4)
-        plt.subplots_adjust(top=0.94)
-        plt.suptitle('-'.join(subsettedDfTitle),fontsize = 'large',fontweight='bold')
+                if plotOptions['axisScaling'][axis] == 'Logarithmic':
+                    ax.fig.get_axes()[0].set_xscale('log')
+                elif plotOptions['axisScaling'][axis] == 'Biexponential':
+                    ax.fig.get_axes()[0].set_xscale('symlog',linthreshx=plotOptions['linThreshold'][axis])
+                else:
+                    pass
+        plt.subplots_adjust(top=0.85)
+        if 'NotApplicable' in subsettedDfTitle:
+            subsettedDfTitle.remove('NotApplicable')
+
+        plt.suptitle('-'.join(subsettedDfTitle),fontsize = 'x-large',fontweight='bold')
+        fullTitleString = createFacetPlotName(folderName,dataType,plotType,subPlotType,legendParameterToLevelNameDict,subsettedDfTitle,levelsPlottedIndividually,useModifiedDf,plotOptions['axisScaling'])
         plt.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
         print(fullTitleString+' plot saved')
         plt.clf()
