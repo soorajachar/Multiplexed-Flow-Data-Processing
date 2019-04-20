@@ -10,10 +10,10 @@ from miscFunctions import parseCommandLineNNString
 sys.path.insert(0, '../figuresPipeline/')
 import heatMapsMaster as hmm
 import facetPlottingLibrary as fpl
+import singleStainHistogramMaster as sshm
 #import exponentialFitMaster as efpm
 import isomapMaster as im
 import mutualInformationMaster as mi
-import singleStainAntibodyPanel as sshm
 import singleCellDataProcessing as scdp
 sys.path.insert(0, '../neuralNetwork/')
 
@@ -88,6 +88,7 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgro
             expIndex = expNum - 1
             folderName = ex_data['Full Name'][expIndex]
             researcherName = ex_data['Researcher'][expIndex]
+            experimentType = ex_data['ExperimentType'][expIndex]
             """
             if(researcherName != 'Sooraj'):
                 if scriptToRun != 1:
@@ -123,14 +124,15 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgro
                         celldf = idp.createFullDataFrames(folderName,secondPath,expNum,concUnit,concUnitPrefix,'cell')
                         idp.convertDataFramestoExcel(folderName,secondPath,'cell',celldf,useModifiedDf)
                     if(cellTypeArray[2]):
-                        #scdp.createInitialSingleCellDataFrame(folderName,expNum)
+                        scdp.createInitialSingleCellDataFrame(folderName,expNum)
                         bulkprolifdf = scdp.createProliferationSingleCellDataFrame(folderName,secondPath,useModifiedDf)
                         idp.convertDataFramestoExcel(folderName,secondPath,'prolif',bulkprolifdf,useModifiedDf)
                     if(cellTypeArray[3]):
-                        #scdp.createInitialSingleCellDataFrame(folderName,expNum)
-                        scdp.createCytokineSingleCellDataFrame(folderName)
-                        scdp.createCellSingleCellDf(folderName)
-                        scdp.createCompleteSingleCellDf(folderName)
+                        scdp.createInitialSingleCellDataFrame(folderName,expNum)
+                        if experimentType not in ['AntibodyTest']:
+                            scdp.createCytokineSingleCellDataFrame(folderName)
+                            scdp.createCellSingleCellDf(folderName)
+                            scdp.createCompleteSingleCellDf(folderName)
                 
                 elif(scriptToRun == 4): #Preprocess data for neural network
                     print('Preprocessing data for: '+str(folderName))
@@ -173,6 +175,10 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgro
                     proliferationdf = pickle.load(open('semiProcessedData/proliferationStatisticPickleFile-'+folderName+modifiedstring+'.pkl','rb'))
                     dataType = 'prolif'
                     dfArray[dataType] = proliferationdf
+                if(cellTypeArray[3]):
+                    singlecelldf = pickle.load(open('semiProcessedData/singleCellDataFrame-complete-'+folderName+modifiedstring+'.pkl','rb'))
+                    dataType = 'singlecell'
+                    dfArray[dataType] = singlecelldf
 
                 if(scriptToRun == 101): #Heatmaps
                     print('Creating Heatmaps for: '+str(folderName))
@@ -185,7 +191,8 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgro
                             hmm.createCombinedHeatMap(folderName,secondPath,dfArray[dfKey],concUnit,concUnitPrefix,useModifiedDf,dfKey)
                             hmm.createIndividualHeatMaps(folderName,secondPath,dfArray[dfKey],concUnit,concUnitPrefix,useModifiedDf,dfKey)
                 
-                elif(scriptToRun in [102,103,104,106]): #Facet plots (line,scatter,scatter w/line for expfits)
+                elif(scriptToRun in [102,103,104,106,107]): #Facet plots (line,scatter,scatter w/line for expfits)
+                    print(dfArray)
                     for dfKey in dfArray:
                         if(scriptToRun == 102):
                             plotType = 'ordered'
@@ -210,17 +217,17 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgro
                         fpl.facetPlottingGUI(dfArray[dfKey],plotType,dataType)
                         subsettedDfList,subsettedDfListTitles,levelsToPlot,figureLevels,levelValuesPlottedIndividually = fpl.produceSubsettedDataFrames(folderName,secondPath,dfArray[dfKey],useModifiedDf)
                         fpl.plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually,useModifiedDf)
-                if(scriptToRun == 105): #Single Stain histograms
-                    print('Creating Heatmaps for: '+str(folderName)) 
-                    print(os.getcwd())
-                    sshm.createHistograms(folderName)
-                    os.chdir('..')
+                elif scriptToRun in [105]: #Single Cell Figures
+                    if scriptToRun == 105:
+                        logicleDf = pickle.load(open('semiProcessedData/initialSingleCellDf-channel-'+folderName+modifiedstring+'.pkl','rb'))
+                        sshm.createHistograms(logicleDf,folderName)
+
                 os.chdir('../../programs/figuresPipeline/')
             
             else: #Not supported
                 pass
 def main():
-    os.chdir('dataprocessing')
+    #os.chdir('dataProcessing')
     parser = argparse.ArgumentParser(description="Create experiment, process data, run analysis/visualization/neural network scripts on data.")
     
     parser.add_argument("-ce", action='store_true', help="Create experiment folders and subfolders.")
@@ -229,11 +236,13 @@ def main():
     parser.add_argument("-fp", action='store_true', help = "Create exp fitting parameter dataframes for selected experiments.")
     
     parser.add_argument("-m", action='store_true', help = "Use non-raw dataframe (outliers/replicates removed/averaged).")
+    
     parser.add_argument("-cyt", action='store_true', help = "Process cytokine data type.")
     parser.add_argument("-cell", action='store_true', help = "Process cell data type.")
     parser.add_argument("-prolif", action='store_true', help = "Process proliferation data type.")
     parser.add_argument("-sc", action='store_true', help = "Process single cell data type.")
     parser.add_argument("-all", action='store_true', help = "Process all data types.")
+    parser.add_argument("-na", action='store_true', help = "Do not process using a specific data type.")
     
     parser.add_argument("-hm", action='store_true', help = "Create heatmaps of the selected experiments.")
     parser.add_argument("-lp", action='store_true', help = "Create lineplots for selected experiments.")
@@ -243,7 +252,7 @@ def main():
     parser.add_argument("-kde", action='store_true', help = "Create kde for selected experiments.")
     parser.add_argument("-ef", action='store_true', help = "Create scatterplot with exponential fit for selected experiments.")
     
-    parser.add_argument("-ssh", action='store_true', help = "Create single stain logicle histograms for selected experiments. / used to signify nested gated populations.")
+    parser.add_argument("-sshm", action='store_true', help = "Create single stain logicle histograms for selected experiments.")
     
     parser.add_argument("-imsp", action='store_true', help = "Create isomap scatterplots for selected crossvalidated experiments.")
     parser.add_argument("-imdp", action='store_true', help = "Create isomap density plots for selected crossvalidated experiments.")
@@ -261,6 +270,8 @@ def main():
     hmgroup = 'c'
     if(args.all):
         cellTypeArray = [True,True,True,True]
+    elif args.na:
+        cellTypeArray = [False,False,False,False]
     else:
         cellTypeArray = [args.cyt,args.cell,args.prolif,args.sc]
     if(len(str(args.inputString)) > 0):
@@ -286,7 +297,7 @@ def main():
         scriptToRun = 103
     elif(args.ef):
         scriptToRun = 104
-    elif(args.ssh):
+    elif(args.sshm):
         scriptToRun = 105
     elif(args.bp):
         scriptToRun = 106

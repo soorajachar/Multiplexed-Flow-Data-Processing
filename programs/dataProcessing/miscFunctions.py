@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 listOfCytokines=['IFNg','IL-2','IL-4','IL-6','IL-10','IL-17A','TNFa']
+sampleIDOrder = False
 
 def Hill(x, Amplitude, EC50, hill,Background):
     return np.log10(Amplitude * np.power(x,hill)/(np.power(EC50,hill)+np.power(x,hill))+Background)
@@ -45,7 +46,6 @@ def r_squared(xdata,ydata,func,popt):
 
 #Sample_A2_A02_002.fcs,
 def cleanUpFlowjoCSV(fileArray,folderName,dataType):
-    sampleIDOrder = False
     #Samples will be indexed based on well ID (A01, then A02 etc.)
     if not sampleIDOrder:
         orderWellID = {}

@@ -36,7 +36,7 @@ def facetPlottingGUI(df,plotType,dataType):
     for i in range(fulldf.index.nlevels):
         levelName = fulldf.index.levels[i].name
         labelDict[levelName] = list(pd.unique(fulldf.index.get_level_values(levelName)))
-
+    
     #Grab levels that will be used within a figure
     fig = plt.figure()
     plt.axis('off')
@@ -462,14 +462,13 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                     levelValues = unorderedLevelValues
                 kwargs['row_order'] = levelValues
             elif parameter == 'X Axis Values':
-                subsettedDf.index.set_names(plotOptions['axisTitles'][0],level=currentLevel,inplace=True)
+                subsettedDf.index.set_names(plotOptions['axisTitles']['X Axis'],level=currentLevel,inplace=True)
                 kwargs['x'] = plotOptions['axisTitles']['X Axis']
         #Assign y axis parameter
         if 'Statistic' in figureParameters:
             subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
             kwargs['y'] = subsettedDfTitle[figureParameters.index('Statistic')]
         else:
-            plotOptions['axisTitles']['Y Axis']
             subsettedDf.columns = [plotOptions['axisTitles']['Y Axis']]
             kwargs['y'] = plotOptions['axisTitles']['Y Axis']
         
