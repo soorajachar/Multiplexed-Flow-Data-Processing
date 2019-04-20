@@ -75,7 +75,7 @@ def returnGatesAndTicks(logicleData,rawData):
     w = 0
     #w = (m-np.log(T/abs(r)))/2
     generationGatesLinear = list(logicle(logicleData,T,m,r)*100)
-    print(generationGatesLinear)
+    print(ginitialSingleCellDf-channel-20190416-AntibodyPanel_OT1_AntibodyTest_7.pklenerationGatesLinear)
     #sys.exit(0)
     """
     #generationGatesLinear = [896.0, 825.0, 752.0, 677.0, 597.0, 510.0, 419.0]
