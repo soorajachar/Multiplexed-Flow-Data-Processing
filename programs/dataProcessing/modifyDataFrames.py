@@ -7,7 +7,7 @@ created on sat jul 21 13:12:56 2018
 """
 import numpy as np
 import pandas as pd
-import sys
+import sys,pickle
 
 #Removes a particular level (and all of its sublevels) from the dataframe
 def dropLevel(df,levelValueToDrop,levelOfLevelValueToDrop):
@@ -50,22 +50,24 @@ def averageEdgeOutliers(df,outlierIndices):
                     df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-1] = df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd]
     return df
 
-#pandas hack to get levels after unstacking to be in the same order as the original, as unstack as of 0.23 sorts levels automatically. Referenced in https://github.com/pandas-dev/pandas/issues/21675
-def originalIndexOrder(df):
-    dummyList = []
-    for i in range(df.index.nlevels):
-        dummyList.append('Dummy')
-    dummyTuple = tuple(dummyList)
-    dummyIndex = pd.MultiIndex.from_tuples([dummyTuple],names=df.index.names)
-    dummyBareDf = np.ones((1,df.shape[1]))
-    dummyDf = pd.DataFrame(dummyBareDf,index=dummyIndex,columns=list(df.columns))
-    newDf = pd.concat([df,dummyDf])
-    dropVal = df.index.names[0]
-    originalIndexOrderDf = dropLevel(newDf,'Dummy',dropVal)
-    return originalIndexOrderDf
+#Replace saturated cytokine measurements with diluted measurements
+def replaceSaturatedCytokines(folderName,df,dilutedDf,dilutionFactor):
+    LODParameters = pickle.load(open('semiProcessedData/LODParameters-'+folderName+'-nM.pkl', "rb"))
+    for row in range(dilutedDf.shape[0]):
+        dilutedDfNames = tuple(dilutedDf.iloc[row,:].name)
+        upperConcLOD = LODParameters[dilutedDfNames[0]][3]
+        dfRowToDesaturate = df.loc[dilutedDfNames,:]
+        print(df.loc[dilutedDfNames])
+        for i in range(dfRowToDesaturate.shape[0]):
+            if df.loc[dilutedDfNames].values[i] == upperConcLOD:
+                df.loc[dilutedDfNames].values[i] = dilutionFactor*dilutedDf.iloc[row,i]
+        print(df.loc[dilutedDfNames])
+    return df
 
 #Perform various modifications of dataframe; specific to each experiment (outlier averaging, erroneous value dropping etc.)
 def returnModifiedDf(experimentNumber,df,dataType):
+    excel_data = pd.read_excel('../masterExperimentSpreadsheet.xlsx')
+    folderName = excel_data['Full Name'][experimentNumber-1]
     onlyPairs = False
     #Drop positive control aCD3/aCD28, interpolate Q4,1nM T+57 and T4,1uM,T+86 (erroneous)
     if(experimentNumber == 28):
@@ -230,8 +232,34 @@ def returnModifiedDf(experimentNumber,df,dataType):
             else:
                 levelsToKeep.append(i)
         df = df.iloc[levelsToKeep,:-1]
-
+        if dataType == 'cell' or dataType == 'prolif':
+            levelsToKeep2 = []
+            for i in range(df.shape[0]):
+                rowlevels = df.iloc[i,:].name
+                if((rowlevels[-2] == 'N4' or rowlevels[-2] == 'Q4')):
+                    pass
+                else:
+                    levelsToKeep2.append(i)
+            df = df.iloc[levelsToKeep2,:]
+    elif experimentNumber == 92:
+        if dataType == 'cell' or dataType == 'prolif':
+            levelsToKeep2 = []
+            for i in range(df.shape[0]):
+                rowlevels = df.iloc[i,:].name
+                if((rowlevels[-2] == 'N4' or rowlevels[-2] == 'Q4')):
+                    pass
+                else:
+                    levelsToKeep2.append(i)
+            df = df.iloc[levelsToKeep2,:]
+    elif experimentNumber == 93:
+        if dataType == 'cyt':
+            dilutedDf = pickle.load(open('semiProcessedData/correctedCytokineDataFrames-'+folderName+'-Concentration.pkl','rb'))[folderName]
+            df = replaceSaturatedCytokines(folderName,df,dilutedDf,10)
+    #Last 2-3 timepoints dried out due to low humidity
+    elif experimentNumber == 96:
+        df = df.iloc[:,:-3]
     #Need to change original index order to real way of keep index order (with reset_index in single cell processing scripts)
-    modifiedDf = originalIndexOrder(df)
+    modifiedDf = df.copy()
     modifiedDf.columns.name = 'Time'
+    print(modifiedDf)
     return modifiedDf

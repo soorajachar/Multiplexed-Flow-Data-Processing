@@ -78,6 +78,7 @@ def createParameters(folderName,numConditions,numTimePoints,showOldHeatMap):
         contiguous = str(input('Are the only empty wells in a timepoint at the end of the timepoint\'s columns (y/n)? '))
     if paired != 'y':
         replicateWise = 'y'
+        alternatingPlateWise = str(input('Do your timepoints alternate between plates? (y/n)? '))
     else:
         replicateWise = str(input('Do conditions 1-16 in this experiment come from PlateA only or do they also involve PlateB? '))
     #Asks for user input for number of conditions levels, and if they want to fill in levels manually (one tuple at a time). Used mainly for the peptide/concentration levels, as there are different concentrations associated with each peptide (concentrations are not replicated across peptides)
@@ -136,7 +137,7 @@ def createParameters(folderName,numConditions,numTimePoints,showOldHeatMap):
                 currentConditionLevelLabelArray.append(currentConditionLabel)
             nestedConditionLabelsArray.append(currentConditionLevelLabelArray) 
     
-    manualTimeFill = str(input('Do you  want to enter timepoints in manually (y/n)?'))
+    manualTimeFill = str(input('Do you  want to enter timepoints in manually (y/n)? '))
     if manualTimeFill == 'y':
         timeArray= []
         for tp in range(1,numTimePoints+1):
@@ -175,11 +176,23 @@ def createParameters(folderName,numConditions,numTimePoints,showOldHeatMap):
             plateNameArray.append('A'+str(i+1))
             plateNameArray.append('B'+str(i+1))
     else:
-        for i in range(0,numPlates):
-            print('wat')
-            print(i)
-            plateNameArray.append('A'+str(i+1))
+        if alternatingPlateWise == 'y':
+            maxPlates = 8
+            #Number of plates required to span all conditions
+            platesPerCondition = math.ceil(numConditions/plateWidth)
+            #Number of plates of a single condition required for all timepoints
+            platesPerTimePoint = math.ceil(numTimePoints/plateLength)
+            upperCase = string.ascii_uppercase
+            for i in range(platesPerCondition):
+                for j in range(platesPerTimepoint):
+                    plateNameArray.append(upperCase[i]+str(j+1))
+        else:
+            for i in range(0,numPlates):
+                plateNameArray.append('A'+str(i+1))
 
-    experimentParameters = [[numConditions,numTimePoints],conditionLevelsArray,nestedConditionLabelsArray,timeArray,plateNameArray,manualFill == 'y',paired == 'y',contiguous == 'y',replicateWise =='y']
+    if paired != 'y':
+        experimentParameters = [[numConditions,numTimePoints],conditionLevelsArray,nestedConditionLabelsArray,timeArray,plateNameArray,manualFill == 'y',paired == 'y',contiguous == 'y',alternatingPlateWise =='y']
+    else:
+        experimentParameters = [[numConditions,numTimePoints],conditionLevelsArray,nestedConditionLabelsArray,timeArray,plateNameArray,manualFill == 'y',paired == 'y',contiguous == 'y',replicateWise =='y']
     with open('inputFiles/experimentParameters-'+folderName+'.json','w') as f:
         json.dump(experimentParameters, f)

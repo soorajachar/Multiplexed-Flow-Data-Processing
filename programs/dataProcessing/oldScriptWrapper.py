@@ -8,7 +8,8 @@ import initialDataProcessing as idp
 #import preprocessDataMaster as aeppdm
 from miscFunctions import parseCommandLineNNString
 sys.path.insert(0, '../figuresPipeline/')
-import facetPlotLibrary as fpl
+import heatMapsMaster as hmm
+import facetPlottingLibrary as fpl
 import singleStainHistogramMaster as sshm
 #import exponentialFitMaster as efpm
 import isomapMaster as im
@@ -28,7 +29,7 @@ modelNames = ['ae-5-3-5-raw','ae-5-3-5-partitioned','ae-5-3-5-raw-normPerObserva
         'ae-11-3-11-parameterized','ae-16-3-16-parameterized','ae-6-3-6-parameterized']
 modelName = modelNames[10]
 
-def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
+def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray,hmgroup):
     if(int(scriptToRun/100.) == 2): #Neural network scripts
         if(scriptToRun == 201):
             print('Training network for: '+str(inputString))
@@ -182,12 +183,21 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                     dataType = 'singlecell'
                     dfArray[dataType] = singlecelldf
 
-                if(scriptToRun in [101,102,103,104,106,107]): #Facet plots (line,scatter,scatter w/line for expfits)
+                if(scriptToRun == 101): #Heatmaps
+                    print('Creating Heatmaps for: '+str(folderName))
                     for dfKey in dfArray:
-                        if scriptToRun == 101:
-                            plotType = 'heatmap'
-                            subPlotType = 'heatmap'
-                        elif(scriptToRun == 102):
+                        if hmgroup == 'c':
+                            hmm.createCombinedHeatMap(folderName,secondPath,dfArray[dfKey],concUnit,concUnitPrefix,useModifiedDf,dfKey)
+                        elif hmgroup == 'i':
+                            hmm.createIndividualHeatMaps(folderName,secondPath,dfArray[dfKey],concUnit,concUnitPrefix,useModifiedDf,dfKey)
+                        else:
+                            hmm.createCombinedHeatMap(folderName,secondPath,dfArray[dfKey],concUnit,concUnitPrefix,useModifiedDf,dfKey)
+                            hmm.createIndividualHeatMaps(folderName,secondPath,dfArray[dfKey],concUnit,concUnitPrefix,useModifiedDf,dfKey)
+                
+                elif(scriptToRun in [102,103,104,106,107]): #Facet plots (line,scatter,scatter w/line for expfits)
+                    print(dfArray)
+                    for dfKey in dfArray:
+                        if(scriptToRun == 102):
                             plotType = 'ordered'
                             subPlotType = 'line'
                         elif(scriptToRun == 103):
@@ -210,7 +220,7 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                         plt.switch_backend('QT4Agg') #default on my system
                         fpl.facetPlottingGUI(dfArray[dfKey],plotType,dataType)
                         subsettedDfList,subsettedDfListTitles,levelsToPlot,figureLevels,levelValuesPlottedIndividually = fpl.produceSubsettedDataFrames(folderName,secondPath,dfArray[dfKey],useModifiedDf)
-                        fpl.plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually,useModifiedDf,dfArray[dfKey])
+                        fpl.plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually,useModifiedDf)
                 elif scriptToRun in [105]: #Single Cell Figures
                     if scriptToRun == 105:
                         logicleDf = pickle.load(open('semiProcessedData/initialSingleCellDf-channel-'+folderName+modifiedstring+'.pkl','rb'))
@@ -257,9 +267,11 @@ def main():
     parser.add_argument("-cvnnd", action='store_true', help = "Crossvalidate data for neural network for selected experiments.")
     
     parser.add_argument("--input", dest='inputString', help ="Run specified neural network script on these experimental data sets. Separate numbers with , or - for a range, training sets with a /, or a // to separate training from crossval sets.")
+    parser.add_argument("--hmgroup", dest='hmgroup', help ="Enter i for individual, c for combined, and b for both types of heatmaps")
     
     args = parser.parse_args()
 
+    hmgroup = 'c'
     if(args.all):
         cellTypeArray = [True,True,True,True]
     elif args.na:
@@ -282,6 +294,7 @@ def main():
         scriptToRun = 5
     elif(args.hm):
         scriptToRun = 101
+        hmgroup = str(args.hmgroup)
     elif(args.lp):
         scriptToRun = 102
     elif(args.sp):
@@ -306,5 +319,5 @@ def main():
         scriptToRun = 204
     elif(args.mi):
         scriptToRun = 205
-    runPipelinedScript(scriptToRun,inputString,args.m,cellTypeArray)
+    runPipelinedScript(scriptToRun,inputString,args.m,cellTypeArray,hmgroup)
 main()

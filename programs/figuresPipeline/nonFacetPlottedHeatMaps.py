@@ -183,10 +183,14 @@ def createCombinedHeatMap(folderName,secondPath,df,concUnit,concUnitPrefix,useMo
         fig1 = plt.figure(num=1,figsize=(55,35),dpi=120,facecolor='w',edgecolor='k')
         sns.set(font_scale=1.0)
         observableList = list(pd.unique(df.index.get_level_values(0)))
+        print(observableList)
         for observable,indexNumber in zip(observableList,range(len(observableList))):
-            ax1=fig1.add_subplot(3,3,indexNumber+1)
+            if len(observableList) <= 9:
+                ax1=fig1.add_subplot(3,3,indexNumber+1)
+            else:
+                ax1=fig1.add_subplot(4,5,indexNumber+1)
             currentdf = df.loc[observable]
-            
+             
             plt.title(observable)
             
             if dataType == 'cyt': 
