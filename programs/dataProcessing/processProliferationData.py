@@ -7,13 +7,14 @@ created on sat jul 21 13:12:56 2018
 """
 import matplotlib,statistics
 #matplotlib.use('QT4Agg') 
-import os,sys,pickle,json,math
+import os,sys,pickle,json,math,itertools
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+plt.switch_backend('MacOSX') #default on my system
 import seaborn as sns
 from draggableLine import draggable_lines
-from modifyDataFrames import originalIndexOrder
+from modifyDataFrames import returnModifiedDf
 from logicle import logicle,quantile 
 
 def find_nearest(array, value):
@@ -22,16 +23,49 @@ def find_nearest(array, value):
     return array[idx],idx
 
 def createProliferationData(folderName,logicleDataFull,rawDataFull):
+    idx = pd.IndexSlice
     logicleDataUnstacked = logicleDataFull.unstack('Event')
     rawDataUnstacked = rawDataFull.unstack('Event')
-    for i in range(logicleDataFull.index.nlevels-1):
-        logicleDataUnstacked = logicleDataUnstacked.reindex(logicleDataFull.index.get_level_values(i).unique(),level=i)
-        rawDataUnstacked = rawDataUnstacked.reindex(logicleDataFull.index.get_level_values(i).unique(),level=i)
-    return logicleDataUnstacked,rawDataUnstacked
+    
+    emptyMatrixLogicle = np.zeros(logicleDataUnstacked.shape)
+    emptyMatrixRaw = np.zeros(logicleDataUnstacked.shape)
+    
+    #Reindex unstacked dataframe by original ordering
+    indexDfFull = pickle.load(open('semiProcessedData/cellStatisticPickleFile-'+folderName+'.pkl','rb'))
+    indexDf = indexDfFull.loc[list(pd.unique(indexDfFull.index.get_level_values(0)))[0]].loc[list(pd.unique(indexDfFull.index.get_level_values(1)))[0]].loc[list(pd.unique(indexDfFull.index.get_level_values(2)))[0]]
+    levelValues = []
+    iteration = 0
+    for row in range(indexDf.shape[0]):
+        levelName = list(indexDf.iloc[row,:].name)
+        for timepoint in list(pd.unique(indexDf.columns)):
+            tp = tuple(levelName+[timepoint,slice(None)])
+            emptyMatrixRaw[iteration,:] = rawDataUnstacked.loc[tp,slice(None)]
+            emptyMatrixLogicle[iteration,:] = logicleDataUnstacked.loc[tp,slice(None)]
+            levelValues.append(tp[:-1])
+            iteration+=1
+    multiIndex = pd.MultiIndex.from_tuples(levelValues, names=indexDf.index.names+[indexDf.columns.name])
+    
+    logicleData = pd.DataFrame(emptyMatrixLogicle,index=multiIndex,columns=logicleDataUnstacked.columns)
+    rawData = pd.DataFrame(emptyMatrixRaw,index=multiIndex,columns=rawDataUnstacked.columns)
+    logicleData.columns.name = 'Event'
+    rawData.columns.name = 'Event'
+    
+    """
+    for row in range(logicleData.shape[0]):
+        rowdf = logicleData.iloc[row,:].name
+        if rowdf[-1] == 0.5:
+            print(rowdf)
+            tempdf = logicleData.loc[rowdf,:]
+            temp = tempdf[~np.isnan(tempdf)]
+            print(temp.shape)
+    sys.exit(0)
+    """
+    return logicleData,rawData
 
 def returnGatesAndTicks(logicleData,rawData):
     maxGenerationNumber = 7
-    generationZeroGFI = 50000
+    #Need to enter this programatically
+    generationZeroGFI = 60000
     logxticks = [-1000,100,1000,10000,100000]
     print(logicleData) 
     #Get CTV GFI means for each generation by dividing initial GFI by 2 for each division
@@ -65,32 +99,23 @@ def returnGatesAndTicks(logicleData,rawData):
         temprawtick,temprawtickindex = find_nearest(newtempraw,tickval)
         templintick = newtemplin[temprawtickindex]
         xtickValues.append(templintick)
-    """
-    T = 262143
-    d = 4.5
-    m = d*np.log(10)
-    logicleData0 = np.array(generationMeansLog)
-    logicleData = logicleData0[logicleData0<T]
-    r = quantile(logicleData[logicleData<0], 0.05)
-    w = 0
-    #w = (m-np.log(T/abs(r)))/2
-    generationGatesLinear = list(logicle(logicleData,T,m,r)*100)
-    print(ginitialSingleCellDf-channel-20190416-AntibodyPanel_OT1_AntibodyTest_7.pklenerationGatesLinear)
-    #sys.exit(0)
-    """
     #generationGatesLinear = [896.0, 825.0, 752.0, 677.0, 597.0, 510.0, 419.0]
     for gateval in generationGatesLog:
         generationGatesLinear.append(newtemplin[find_nearest(newtempraw,gateval)[1]])
     return generationGatesLinear,xtickValues,xtickLabels
 
-def processProliferationData(folderName,logicleData,rawData,generationGatesLinear,xtickValues,xtickLabels,logicleDataStackedIndex):
+#def processProliferationData(folderName,logicleData,rawData,generationGatesLinear,xtickValues,xtickLabels,logicleDataStackedIndex):
+def processProliferationData(folderName,logicleData,rawData,generationGatesLinear,xtickValues,xtickLabels,logicleDataStacked):
     with open('inputFiles/experimentParameters-'+folderName+'.json') as f:
         experimentParameters = json.load(f)
     numConditions = experimentParameters[0][0]
     numTimePoints = experimentParameters[0][1]
     
     binNum = 256
-    bandwidth = 0.08
+    #Might need to calculate bandwidth manually as there seems to be significan fluctuation in the numbered required for distinct peaks in the kde of the ctv values
+    bandwidth = 15
+    #bandwidth = 25
+    #bandwidth = 'scott'
     
     maxLinear = np.nanmax(logicleData)
     minLinear = np.nanmin(logicleData)-1
@@ -106,6 +131,9 @@ def processProliferationData(folderName,logicleData,rawData,generationGatesLinea
     sampleLogicleLengths = []
     sampleLogicleGatedLengths = []
     logicleLengths = []
+    print(logicleData.iloc[0,:])
+    print(logicleData.iloc[24*8,:])
+    #for iteration in range(2):
     for iteration in range(int(logicleData.shape[0]/numTimePoints)):
         #fig = plt.figure(figsize=(3*numTimePoints/3, 5*3))
         fig = plt.figure()
@@ -137,12 +165,12 @@ def processProliferationData(folderName,logicleData,rawData,generationGatesLinea
                 lineList.append(draggable_lines(ax, "v", generationGatesLinear[j]))
             k+=1
             fullLineList.append(lineList)
-        plt.tight_layout()
-        plt.show()
-        """
-        plt.show(block=False)
+        #plt.tight_layout()
+        #plt.show()
         plt.close()
-        """
+            
+        print('iter')
+        print(iteration)
         sampleVal = iteration*numTimePoints
         conditionGenerationData = []
         for sampleLines in fullLineList:
@@ -160,23 +188,71 @@ def processProliferationData(folderName,logicleData,rawData,generationGatesLinea
                     lowerGate = sampleGenerationGates[generation+1]
                     if(sampleEvent > lowerGate and sampleEvent <= upperGate):
                         sampleGenerationData.append(generation)
-            sampleLogicleGatedLengths.append(len(sampleGenerationData))
             sampleVal+=1
-            conditionGenerationData+=sampleGenerationData
-        names = [logicleData.iloc[iteration,:].name[:-2]]+[slice(None)]+[slice(None)]
-        completeGenerationData += conditionGenerationData
-    #logicleDataStackedIndex = pickle.load(open('semiProcessedData/initialSingleCellDf-scale-'+folderName+'.pkl','rb'))['TCell_Gate'].index
-    singleCellProliferationDf = pd.DataFrame(completeGenerationData,index=logicleDataStackedIndex,columns=['Generation'])
+            #if sampleVal == numTimePoints*0 or sampleVal == numTimePoints*8:
+            conditionGenerationData.append(sampleGenerationData)
+            #conditionGenerationData+=sampleGenerationData
+        completeGenerationData.append(conditionGenerationData)
+        #completeGenerationData += conditionGenerationData
+    
+    temp1 = logicleDataStacked.copy()
+    temp2 = pd.concat([logicleDataStacked,temp1],axis=1,keys=['GFI_1','GFI_2'])
+    newList = []
+    newIndex = []
+    sampleLengths = []
+    row = 0
+    for conditionList in completeGenerationData:
+        for timelist in conditionList:
+            newList.append(timelist)
+            wat = logicleData.iloc[row,:].name
+            newIndex.append(wat)
+            sampleLengths.append(len(timelist))
+            row+=1
+            #row+=len(timelist)
+    completeGenerationData = list(itertools.chain.from_iterable(newList))
+    realIndex = []
+    i=0
+    for sampleTuple in newList:
+        for eventNumber in range(1,sampleLengths[i]+1):
+            eventIndex = list(newIndex[i])
+            eventIndex.append(eventNumber)
+            realIndex.append(eventIndex)
+        i+=1
+        print(i)
+    idx = pd.IndexSlice
+    newMultiIndex = pd.MultiIndex.from_tuples(realIndex,names=tuple(logicleDataStacked.index.names))
+    singleCellProliferationDf = pd.DataFrame(completeGenerationData,index=newMultiIndex,columns=['Generation'])
+    
+    #Merge initial two peaks to correct division index
+    generationValues = np.subtract(singleCellProliferationDf.values,1).clip(0,7)
+    singleCellProliferationDf.values[:] = generationValues
+    
     print(singleCellProliferationDf)
     with open('semiProcessedData/singleCellDataFrame-proliferation-'+folderName+'.pkl', 'wb') as f:
         pickle.dump(singleCellProliferationDf,f)
 
-def generateBulkProliferationStatistics(folderName):
+def generateBulkProliferationStatistics(folderName,experimentNumber):
     singleCellProliferationDfStacked = pickle.load(open('semiProcessedData/singleCellDataFrame-proliferation-'+folderName+'.pkl','rb'))
+    idx = pd.IndexSlice
     numGenerations = len(singleCellProliferationDfStacked.loc[:,'Generation'].unique())
     singleCellProliferationDfUnstacked = singleCellProliferationDfStacked.unstack('Event')
-    for i in range(singleCellProliferationDfStacked.index.nlevels-1):
-        singleCellProliferationDfUnstacked = singleCellProliferationDfUnstacked.reindex(singleCellProliferationDfStacked.index.get_level_values(i).unique(),level=i)
+    #Reindex unstacked dataframe by original ordering
+    indexDfFull = pickle.load(open('semiProcessedData/cellStatisticPickleFile-'+folderName+'.pkl','rb'))
+    indexDf = indexDfFull.loc[list(pd.unique(indexDfFull.index.get_level_values(0)))[0]].loc[list(pd.unique(indexDfFull.index.get_level_values(1)))[0]].loc[list(pd.unique(indexDfFull.index.get_level_values(2)))[0]]
+    levelValues = []
+    iteration = 0
+    emptyMatrixLogicle = np.zeros(singleCellProliferationDfUnstacked.shape)
+    for row in range(indexDf.shape[0]):
+        levelName = list(indexDf.iloc[row,:].name)
+        for timepoint in list(pd.unique(indexDf.columns)):
+            tp = tuple(levelName+[timepoint,slice(None)])
+            emptyMatrixLogicle[iteration,:] = singleCellProliferationDfUnstacked.loc[tp,slice(None)]
+            levelValues.append(tp[:-1])
+            iteration+=1
+    multiIndex = pd.MultiIndex.from_tuples(levelValues, names=indexDf.index.names+[indexDf.columns.name])
+    
+    singleCellProliferationDfUnstacked = pd.DataFrame(emptyMatrixLogicle,index=multiIndex,columns=singleCellProliferationDfUnstacked.columns)
+    singleCellProliferationDfUnstacked.columns.name = 'Event'
     #Frequency
     generationFrequencyMatrix = np.zeros([singleCellProliferationDfUnstacked.shape[0],numGenerations])
     for row in range(singleCellProliferationDfUnstacked.shape[0]):
@@ -223,11 +299,27 @@ def generateBulkProliferationStatistics(folderName):
     for i in range(len(allProliferationMatricesList)):
         statisticDf = pd.DataFrame(allProliferationMatricesList[i],index=singleCellProliferationDfUnstacked.index)#,columns = [allProliferationStatisticNames[i]])
         statisticDfUnstacked = statisticDf.unstack('Time')
-        for j in range(statisticDf.index.nlevels-1):
-            statisticDfUnstacked = statisticDfUnstacked.reindex(statisticDf.index.get_level_values(j).unique(),level=j)
+        indexDfFull = pickle.load(open('semiProcessedData/cellStatisticPickleFile-'+folderName+'.pkl','rb'))
+        indexDf = indexDfFull.loc[list(pd.unique(indexDfFull.index.get_level_values(0)))[0]].loc[list(pd.unique(indexDfFull.index.get_level_values(1)))[0]].loc[list(pd.unique(indexDfFull.index.get_level_values(2)))[0]]
+        levelValues = []
+        iteration = 0
+        emptyMatrixLogicle = np.zeros(statisticDfUnstacked.shape)
+        for row in range(indexDf.shape[0]):
+            levelName = list(indexDf.iloc[row,:].name)
+            tp = tuple(levelName)
+            emptyMatrixLogicle[iteration,:] = statisticDfUnstacked.loc[tp,:]
+            levelValues.append(tp)
+            iteration+=1
+        multiIndex = pd.MultiIndex.from_tuples(levelValues, names=indexDf.index.names)
+        
+        statisticDfUnstacked = pd.DataFrame(emptyMatrixLogicle,index=multiIndex,columns=statisticDfUnstacked.columns)
+        statisticDfUnstacked.columns.name = 'Time'
         allProliferationStatisticsList.append(statisticDfUnstacked)
     completeBulkProliferationDataFrame = pd.concat(allProliferationStatisticsList,keys=allProliferationStatisticNames,names=['Statistic'],axis=0)
     completeBulkProliferationDataFrame.columns = completeBulkProliferationDataFrame.columns.droplevel(0)
     with open('semiProcessedData/proliferationStatisticPickleFile-'+folderName+'.pkl','wb') as f:
         pickle.dump(completeBulkProliferationDataFrame,f)
-    return completeBulkProliferationDataFrame
+    modifiedDataFrame = returnModifiedDf(experimentNumber,completeBulkProliferationDataFrame,'prolif')
+    with open('semiProcessedData/proliferationStatisticPickleFile-'+folderName+'-modified.pkl','wb') as f:
+        pickle.dump(modifiedDataFrame,f)
+    return modifiedDataFrame

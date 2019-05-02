@@ -8,35 +8,35 @@ created on fri sep 7 13:12:56 2018
 
 import matplotlib
 from matplotlib import pyplot as plt
-from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
 from matplotlib import markers
 import numpy as np
 import seaborn as sns
 import pandas as pd
 import pickle,os,math,sys,itertools,re
 from matplotlib.widgets import RadioButtons,Button,CheckButtons,TextBox
+from facetPlotHeatmaps import heatmapSpecific_GUIWindow,label_index,label_columns,label_headers,draw_borders
+from facetPlotScatterLineBar import scatterLineBarSpecific_GUIWindow
 sys.path.insert(0, '../dataProcessing/')
-from miscFunctions import sortSINumerically
+from miscFunctions import sortSINumerically,reindexDataFrame
 import subprocess
-plt.switch_backend('QT4Agg') #default on my system
-
-def facetPlottingGUI(df,plotType,dataType):
+from matplotlib.colors import LogNorm
     
+#Button width conserved across gui figures
+buttonWidth = 0.1/2
+buttonLength = 0.075/2
+buttonXStart = 0.5-(0.01+buttonWidth)
+buttonYStart = 0.01
+
+#Get level names and values into an easily accessible dictionary
+def createLabelDict(df):
     fulldf = df.stack()
-    
-    #Button width conserved across gui figures
-    buttonWidth = 0.1/2
-    buttonLength = 0.075/2
-    buttonXStart = 0.5-(0.01+buttonWidth)
-    buttonYStart = 0.01
-
-    #Get level names and values into an easily accessible dictionary
     labelDict = {}
     for i in range(fulldf.index.nlevels):
         levelName = fulldf.index.levels[i].name
         labelDict[levelName] = list(pd.unique(fulldf.index.get_level_values(levelName)))
-    
+    return labelDict
+
+def levelsInFigure_GUIWindow(labelDict):
     #Grab levels that will be used within a figure
     fig = plt.figure()
     plt.axis('off')
@@ -68,6 +68,7 @@ def facetPlottingGUI(df,plotType,dataType):
     bQuit.on_clicked(callback.Quit)
     plt.show()
 
+def levelValuesInFigure_GUIWindow(labelDict):
     maxLabelLength = 0
     for labelName in labelDict:
         if len(labelDict[labelName]) > maxLabelLength:
@@ -115,13 +116,15 @@ def facetPlottingGUI(df,plotType,dataType):
     figManager.window.showMaximized()
     plt.show()
 
-    #Ask user which levels to assign to which of the four parameters that can be changed in a bar/point plot: color (c), order (o), x position of subplot (x), y position of subplot (y)
-    #Order essentially is which level is plotted on the x axis, as bar plots are always categorical
+#Ask user which levels to assign to which of the four parameters that can be changed in a bar/point plot: color (c), order (o), x position of subplot (x), y position of subplot (y)
+#Order essentially is which level is plotted on the x axis, as bar plots are always categorical
+def levelsToPlottingParameters_GUIWindow(labelDict,plotType,dataType):
     if plotType == 'categorical':
         parameterTypes = ['Color','Order', 'Row', 'Column']
     elif plotType == 'frequency':
         parameterTypes = ['Color','Row','Column']
-        pass
+    elif plotType == 'heatmap':
+        parameterTypes = ['Row','Column','X Axis Values','Y Axis Values']
     else:
         parameterTypes = ['Marker','Color','Size','Row','Column','X Axis Values']
 
@@ -153,7 +156,13 @@ def facetPlottingGUI(df,plotType,dataType):
         def OKradio3(self, event):
             radioValues = {}
             for radiobutton,levelName in zip(radiobuttons,selectedLevels):
-                radioValues[radiobutton.value_selected] = levelName
+                if radiobutton.value_selected in radioValues.keys():
+                    if isinstance(radioValues[radiobutton.value_selected], (list,)):
+                        radioValues[radiobutton.value_selected] = radioValues[radiobutton.value_selected]+[levelName]
+                    else:
+                        radioValues[radiobutton.value_selected] = [radioValues[radiobutton.value_selected]]+[levelName]
+                else:
+                    radioValues[radiobutton.value_selected] = levelName
             plt.close()
             with open('semiProcessedData/gui-radioVals.pkl','wb') as f:
                 pickle.dump(radioValues,f)
@@ -168,131 +177,6 @@ def facetPlottingGUI(df,plotType,dataType):
     bQuit = Button(axQuit, 'Quit')
     bQuit.on_clicked(callback.Quit)
     plt.show()
-    
-    #Ask scale to use for axes (both y and x if relplot; only y if categorical)
-    if plotType == 'categorical' or plotType == 'frequency':
-        axes = ['Y Axis']
-    else:
-        axes = ['X Axis','Y Axis']
-    constantAxes = ['X Axis','Y Axis']
-
-    axisScalingOptions = ['Linear','Logarithmic','Biexponential']
-
-    fig = plt.figure(figsize=(8,2.5*len(axisScalingOptions)))
-    plt.axis('off')
-    radiobuttons = []
-    axis_title_text_boxes = {}
-    lin_thresh_text_boxes = {}
-    for axis,i in zip(constantAxes,range(len(constantAxes))):
-        #Add axis scaling radio buttons
-        rectLength = 0.15*len(axisScalingOptions)
-        rectWidth = (1- (0.02+0.01*len(constantAxes)))/len(constantAxes)
-        
-        rax3 = plt.axes([0.01*(i+1)+rectWidth*i, 0.94-(buttonWidth+rectLength), rectWidth,rectLength])
-        plt.text(0.5, 1.01,axis,ha='center',transform=plt.gca().transAxes)
-        rax3.spines['bottom'].set_visible(False)
-        rax3.spines['left'].set_visible(False)
-        rax3.spines['right'].set_visible(False)
-        plt.tick_params(which='both',bottom=False,top=False,left=False,right=False,labelbottom=False,labeltop=False,labelleft=False,labelright=False)
-        if(axis == 'X Axis'):
-            if(len(constantAxes) == len(axes)):
-                radiobuttons.append(RadioButtons(rax3,axisScalingOptions,activecolor='black'))
-        else:
-            radiobuttons.append(RadioButtons(rax3,axisScalingOptions,activecolor='black'))
-
-        #Determine initial axis title for textboxes
-        if 'Y' in axis:
-            if dataType == 'cyt':
-                initial_name = 'Concentration (nM)'
-            else:
-                if plotType == 'frequency':
-                    initial_name = 'Count'
-                else:
-                    initial_name = ' '
-        else:
-            if plotType == 'ordered':
-                radioValues = pickle.load(open('semiProcessedData/gui-radioVals.pkl','rb'))
-                initial_name = radioValues['X Axis Values']
-            elif plotType == 'frequency':
-                initial_name = 'GFI'
-            else:
-                radioValues = pickle.load(open('semiProcessedData/gui-radioVals.pkl','rb'))
-                initial_name = radioValues['Order']
-        
-        #Add in axis title text boxes
-        axbox = plt.axes([0.1+0.5*i, 0.25, 0.35, 0.075])
-        text_box = TextBox(axbox, 'Title: ', initial=initial_name)
-        axis_title_text_boxes[axis] = text_box
-        
-        #Add in linear threshold (for biexponential scaling) textboxes
-        if(axis == 'X Axis'):
-            if(len(constantAxes) == len(axes)):
-                linthreshbox = plt.axes([0.1+0.5*i, 0.35, 0.35, 0.075])
-                text_box2 = TextBox(linthreshbox, 'Linear  \nThreshold: ', initial=' ')
-                lin_thresh_text_boxes[axis] = text_box2
-        else:
-            linthreshbox = plt.axes([0.1+0.5*i, 0.35, 0.35, 0.075])
-            text_box2 = TextBox(linthreshbox, 'Linear  \nThreshold: ', initial=' ')
-            lin_thresh_text_boxes[axis] = text_box2
-   
-    if plotType == 'ordered':
-        checkbuttons = []
-        rax2 = plt.axes([0.05,0.09,0.15,0.15])
-        rax2.spines['bottom'].set_visible(False)
-        rax2.spines['left'].set_visible(False)
-        rax2.spines['right'].set_visible(False)
-        rax2.spines['top'].set_visible(False)
-        checkbuttons.append(CheckButtons(rax2,['Sort X numerically'],actives=[False]))
-    
-    linThresholdValues = {}
-    axisTitleValues = {'X Axis':initial_name,'Y Axis':' '}
-    def submitAxisTitleX(text):
-        axisTitleValues['X Axis'] = text
-    def submitAxisTitleY(text):
-        axisTitleValues['Y Axis'] = text
-    axis_title_text_boxes['X Axis'].on_submit(submitAxisTitleX)
-    axis_title_text_boxes['Y Axis'].on_submit(submitAxisTitleY)
-    
-    def submitLinThresholdX(text):
-        linThresholdValues['X Axis'] = float(text)
-    def submitLinThresholdY(text):
-        linThresholdValues['Y Axis'] = float(text)
-    if(len(constantAxes) == len(axes)):
-        lin_thresh_text_boxes['X Axis'].on_submit(submitLinThresholdX)
-        lin_thresh_text_boxes['Y Axis'].on_submit(submitLinThresholdY)
-    else:
-        lin_thresh_text_boxes['Y Axis'].on_submit(submitLinThresholdY)
-
-    class GUIButtons4(object):
-        def OKradiotext4(self, event):
-            plotOptions = {}
-            radioValues = {}
-            for radiobutton,axis in zip(radiobuttons,axes):
-                radioValues[axis] = radiobutton.value_selected
-            if plotType == 'ordered':
-                numericXBoolean = checkbuttons[0].get_status()
-                plotOptions['numericX'] = numericXBoolean
-            else:
-                plotOptions['numericX'] = False
-            plt.close()
-            plotOptions['axisScaling'] = radioValues
-            plotOptions['linThreshold'] = linThresholdValues
-            plotOptions['axisTitles'] = axisTitleValues
-            print(plotOptions)
-            print(os.getcwd())
-            with open('semiProcessedData/gui-plotOptions.pkl','wb') as f:
-                pickle.dump(plotOptions,f)
-        def Quit(self, event):
-            sys.exit(0)    
-
-    callback = GUIButtons4()
-    axOK = plt.axes([buttonXStart, buttonYStart, buttonWidth, buttonLength])
-    axQuit = plt.axes([buttonXStart+buttonWidth+0.01,buttonYStart, buttonWidth, buttonLength])
-    bOK = Button(axOK, 'OK')
-    bOK.on_clicked(callback.OKradiotext4)
-    bQuit = Button(axQuit, 'Quit')
-    bQuit.on_clicked(callback.Quit)
-    plt.show()
 
 def produceSubsettedDataFrames(folderName,secondPath,df,useModifiedDf):
     
@@ -300,9 +184,6 @@ def produceSubsettedDataFrames(folderName,secondPath,df,useModifiedDf):
     specificValueBooleanList = pickle.load(open('semiProcessedData/gui-svBoolList.pkl','rb'))
 
     #Load in dataframe for experiment
-    #fulldf = np.log10(df)
-    #Ask user which levels they want to separate plots by, and which level values within each level they would like to plot (plot individually option)
-    print(df)
     fulldf = df.stack()
 
     allLevels = []
@@ -387,7 +268,16 @@ def createFacetPlotName(folderName,dataType,plotType,subPlotType,legendParameter
     delimiter2 = ','
    
     legendParameterString = delimiter2.join(list(legendParameterToLevelNameDict.keys()))
-    levelNameString = delimiter2.join(list(legendParameterToLevelNameDict.values()))
+    
+    flattened_list = []
+    for val in legendParameterToLevelNameDict.values():
+        if isinstance(val, (list,)):
+            for val2 in val:
+                flattened_list.append(val2)
+        else:
+            flattened_list.append(val)
+    
+    levelNameString = delimiter2.join(flattened_list)
     figureLevelNameString = delimiter2.join(subsettedDfTitle)
 
     if len(levelsPlottedIndividually) == 0:
@@ -422,20 +312,33 @@ def createFacetPlotName(folderName,dataType,plotType,subPlotType,legendParameter
     else:
         initialString = delimiter1.join([subPlotType,dataType,folderName,legendParameterString,levelNameString,figureLevelNameString,axisScalingString])
     fullTitleString = initialString+modifiedString
+    if '/' in fullTitleString:
+        fullTitleString = fullTitleString.replace("/", "_")
+    if '.' in fullTitleString:
+        fullTitleString = fullTitleString.replace(".", "_")
     return fullTitleString
 
-def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureParameters,levelsPlottedIndividually,useModifiedDf):
+def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureParameters,levelsPlottedIndividually,useModifiedDf,fulldf):
     legendParameterToLevelNameDict = pickle.load(open('semiProcessedData/gui-radioVals.pkl','rb'))
     plotOptions = pickle.load(open('semiProcessedData/gui-plotOptions.pkl','rb'))
     
-    subprocess.run(['rm','semiProcessedData/gui-*.pkl'])
+    subprocess.run(['rm','semiProcessedData/gui-radioVals.pkl'])
+    subprocess.run(['rm','semiProcessedData/gui-plotOptions.pkl'])
+    subprocess.run(['rm','semiProcessedData/gui-wfBool.pkl'])
+    subprocess.run(['rm','semiProcessedData/gui-svBoolList.pkl'])
     
+    print(legendParameterToLevelNameDict)
     #Has issues with repeated values (aka CD54 shows up in TCells and APCs) 
     for subsettedDf,subsettedDfTitle in zip(subsettedDfList,subsettedDfListTitles):
         #Assign all levels to plot parameters in catplot/relplot; reassign x/y axis level names to desired x/y axis titles
         kwargs = {}
+        heatmapkwargs = {}
         for parameter in legendParameterToLevelNameDict:
-            currentLevel = legendParameterToLevelNameDict[parameter]
+            if isinstance(legendParameterToLevelNameDict[parameter], (list,)):
+                if parameter == 'Y Axis Values' and plotType == 'heatmap':
+                    kwargs['y'] = legendParameterToLevelNameDict[parameter]
+            else:
+                currentLevel = legendParameterToLevelNameDict[parameter]
             if parameter == 'Color':
                 kwargs['hue'] = currentLevel
             elif parameter == 'Size':
@@ -453,6 +356,8 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 else:
                     levelValues = unorderedLevelValues
                 kwargs['col_order'] = levelValues
+                heatmapkwargs['col'] = kwargs['col']
+                heatmapkwargs['col_order'] = kwargs['col_order']
             elif parameter == 'Row':
                 kwargs['row'] = currentLevel
                 unorderedLevelValues = list(pd.unique(subsettedDf.index.get_level_values(currentLevel)))
@@ -461,40 +366,54 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 else:
                     levelValues = unorderedLevelValues
                 kwargs['row_order'] = levelValues
+                heatmapkwargs['row'] = kwargs['row']
+                heatmapkwargs['row_order'] = kwargs['row_order']
             elif parameter == 'X Axis Values':
+                print(currentLevel)
                 subsettedDf.index.set_names(plotOptions['axisTitles']['X Axis'],level=currentLevel,inplace=True)
                 kwargs['x'] = plotOptions['axisTitles']['X Axis']
-        #Assign y axis parameter
-        if 'Statistic' in figureParameters:
-            subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
-            kwargs['y'] = subsettedDfTitle[figureParameters.index('Statistic')]
+        #Assign y axis (or color bar axis) parameter
+        if plotType != 'heatmap':
+            if 'Statistic' in figureParameters:
+                subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
+                kwargs['y'] = subsettedDfTitle[figureParameters.index('Statistic')]
+            else:
+                subsettedDf.columns = [plotOptions['axisTitles']['Y Axis']]
+                kwargs['y'] = plotOptions['axisTitles']['Y Axis']
         else:
-            subsettedDf.columns = [plotOptions['axisTitles']['Y Axis']]
-            kwargs['y'] = plotOptions['axisTitles']['Y Axis']
-        
+            if 'Statistic' in figureParameters:
+                subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
+                kwargs['z'] = subsettedDfTitle[figureParameters.index('Statistic')]
+            else:
+                subsettedDf.columns = [plotOptions['axisTitles']['Colorbar Axis']]
+                kwargs['z'] = plotOptions['axisTitles']['Colorbar Axis']
+
         plottingDf = subsettedDf.copy()
         #Converts wide form dataframe into long form required for cat/relplot
         plottingDf = plottingDf.reset_index()
         #Use plot options file to initialize plot parameters: axis scaling, numeric x axis ordering
-        #Numeric X Axis Ordering
-        if plotOptions['numericX']:
-            currentLevelValues = list(plottingDf[kwargs['x']])
-            sortedOldLevelValues,newLevelValues = sortSINumerically(currentLevelValues,False,True)
-            #Need to interpret parenthetical units for x to get 1e9
-            if 'M)' in kwargs['x']:
-                s = kwargs['x']
-                units = '1'+s[s.find("(")+1:s.find(")")] 
-                scaledSortedUnits,sortedUnits = sortSINumerically([units],False,True)
+        
+        #Numeric X Axis Ordering; NEED TO GET WORKING WITH HEATMAPS
+        if plotType != 'heatmap':
+            if plotOptions['numericX'][0]:
+                currentLevelValues = list(plottingDf[kwargs['x']])
+                sortedOldLevelValues,newLevelValues = sortSINumerically(currentLevelValues,False,True)
+                #Need to interpret parenthetical units for x to get 1e9
+                if 'M)' in kwargs['x']:
+                    s = kwargs['x']
+                    units = '1'+s[s.find("(")+1:s.find(")")] 
+                    scaledSortedUnits,sortedUnits = sortSINumerically([units],False,True)
+                else:
+                    sortedUnits = [1]
+                scaledNewLevelValues = [float(i) / float(sortedUnits[0]) for i in newLevelValues]
+                plottingDf[kwargs['x']] = scaledNewLevelValues
+                if plotType == 'categorical':
+                    kwargs['order'] = scaledNewLevelValues
             else:
-                sortedUnits = [1]
-            scaledNewLevelValues = [float(i) / float(sortedUnits[0]) for i in newLevelValues]
-            plottingDf[kwargs['x']] = scaledNewLevelValues
-            if plotType == 'categorical':
-                kwargs['order'] = scaledNewLevelValues
-        else:
-            kwargs['order'] = list(pd.unique(subsettedDf.index.get_level_values(kwargs['x'])))
-            print(kwargs['order'])
-
+                if plotType == 'categorical':
+                    kwargs['order'] = list(pd.unique(subsettedDf.index.get_level_values(kwargs['x'])))
+        
+        print(kwargs)
         #Plot data using kwargs; uses catplot for categorical data and relplot for numeric data and a facet grid with a distplot for frequency data (histograms)
         if plotType == 'categorical':
             ax = sns.catplot(**kwargs,data=plottingDf,kind=subPlotType)
@@ -507,6 +426,85 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 box = ax.get_position()
                 ax.set_position([box.x0,box.y0,box.width*0.85,box.height])
             plt.legend(loc='upper left',bbox_to_anchor=(1,0.5))
+        elif plotType == 'heatmap':
+            idx = pd.IndexSlice
+            def draw_heatmap(data,xaxis,yaxis,zaxis, **kwargs):
+                unsortedPivotedData = data.pivot_table(index=yaxis,columns=xaxis, values=zaxis)
+                indexingList = []
+                for name in fulldf.index.names:
+                    if name not in unsortedPivotedData.index.names:
+                        indexingList.append(list(pd.unique(fulldf.index.get_level_values(name)))[0])
+                    else:
+                        indexingList.append(list(pd.unique(unsortedPivotedData.index.get_level_values(name))))
+                indexlist = []
+                for levelIndex in range(len(indexingList)):
+                    levelVal = indexingList[levelIndex]
+                    if isinstance(levelVal, (list,)):
+                        pass
+                    else:
+                        levelVal = [levelVal]
+                    tempindexlist = []
+                    for i in range(fulldf.shape[0]):
+                        if fulldf.iloc[i,:].name[levelIndex] in levelVal:
+                            tempindexlist.append(i)
+                    indexlist.append(tempindexlist)
+                unique_values = set(map(tuple, indexlist))
+                indexlist = list(set.intersection(*map(set,unique_values)))
+                indexdf = fulldf.iloc[indexlist,:]
+                unusedLevelList = []
+                for name in indexdf.index.names:
+                    if len(pd.unique(indexdf.index.get_level_values(name))) == 1:
+                        unusedLevelList.append(name)
+                indexdf.reset_index(level=unusedLevelList, drop=True,inplace=True)
+                d = reindexDataFrame(unsortedPivotedData,indexdf,False)
+                plt.axis('off')
+
+                if plotOptions['axisScaling']['Colorbar Axis'] == 'Logarithmic':
+                    data = d.copy()
+                    log_norm = LogNorm(vmin=data.min().min(), vmax=data.max().max())
+                    if cbarBoolean:
+                        cbar_ticks = [math.pow(10, i) for i in range(math.floor(math.log10(data.min().min())), 1+math.ceil(math.log10(data.max().max())))]
+                    g = sns.heatmap(d, norm=log_norm,**kwargs)
+                else:
+                    g = sns.heatmap(d, **kwargs)
+
+                ax1=plt.gca()
+                label_index(ax1,d)
+                draw_borders(g,d)
+                label_columns(ax1,d)
+                if plotOptions['IncludeLevelNames']:
+                    label_headers(ax1,d)
+            #16x16 heatmap
+            basedim = 16
+            scale=0.4
+            hbase = 6
+            abase = 1.25
+            data = subsettedDf.copy()
+            print(data)
+            if 'row' in kwargs:
+                data = data.xs(kwargs['row_order'][0],level=kwargs['row'])
+            if 'col' in kwargs:
+                data = data.xs(kwargs['col_order'][0],level=kwargs['col'])
+            heatmapdf = data.pivot_table(index=kwargs['y'],columns=kwargs['x'], values=kwargs['z'])
+            hstart = max(hbase+scale*hbase*(heatmapdf.index.size-basedim)/basedim,hbase)
+            astart = max(abase+scale*abase*(heatmapdf.columns.size-basedim)/basedim,abase)
+            if 'row_order' in kwargs:
+                h = hstart*len(kwargs['row_order'])*scale
+            else:
+                h = hstart
+            if 'col_order' in kwargs:
+                a = astart*len(kwargs['col_order'])*scale
+            else:
+                a = astart
+            print('h: '+str(h))
+            print('a: '+str(a))
+            fg = sns.FacetGrid(plottingDf,height=h,aspect=a,gridspec_kws={"wspace":0.4},**heatmapkwargs)
+            if 'row' not in kwargs.keys() and 'col' not in kwargs.keys():
+                cbarBoolean = True
+                cbarBoolean = False
+            else:
+                cbarBoolean = False
+            fg.map_dataframe(draw_heatmap, xaxis=kwargs['x'], yaxis=kwargs['y'], zaxis=kwargs['z'],cbar=cbarBoolean)
         else:
             if 'style' not in kwargs.keys():
                 styleValues = []
@@ -516,7 +514,8 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 plottingDf = pd.concat([plottingDf,styleDf],axis=1)
                 kwargs['style'] = '.'
             ax = sns.relplot(**kwargs,data=plottingDf,markers=True,kind=subPlotType)
-        #Axis Scaling
+
+        #Axis Scaling; NEED TO GET WORKING WITH HEATMAPS
         for axis in plotOptions['axisScaling']:
             if 'Y' in axis:
                 if plotOptions['axisScaling'][axis] == 'Logarithmic':
@@ -527,17 +526,47 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                     pass
             else:
                 if plotOptions['axisScaling'][axis] == 'Logarithmic':
-                    ax.fig.get_axes()[0].set_xscale('log')
+                    if plotType != 'heatmap':
+                        ax.fig.get_axes()[0].set_xscale('log')
                 elif plotOptions['axisScaling'][axis] == 'Biexponential':
                     ax.fig.get_axes()[0].set_xscale('symlog',linthreshx=plotOptions['linThreshold'][axis])
                 else:
                     pass
-        plt.subplots_adjust(top=0.85)
+
+        #Make room for title
+        if 'row' in kwargs:
+            if len(kwargs['row_order']) <=2:
+                plt.subplots_adjust(top=0.9)
+            else:
+                plt.subplots_adjust(top=0.95)
+        else:
+            plt.subplots_adjust(top=0.9)
+
         if 'NotApplicable' in subsettedDfTitle:
             subsettedDfTitle.remove('NotApplicable')
 
         plt.suptitle('-'.join(subsettedDfTitle),fontsize = 'x-large',fontweight='bold')
         fullTitleString = createFacetPlotName(folderName,dataType,plotType,subPlotType,legendParameterToLevelNameDict,subsettedDfTitle,levelsPlottedIndividually,useModifiedDf,plotOptions['axisScaling'])
-        plt.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
+        """
+        for axis in plt.gcf().axes:
+            xticks = axis.xaxis.get_major_ticks()
+            for i in range(len(xticks)):
+                if i % 4 != 0:
+                    xticks[i].set_visible(False) 
+        """
+        fg.fig.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
+        #plt.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
         print(fullTitleString+' plot saved')
         plt.clf()
+
+def facetPlottingGUI(df,plotType,dataType):
+    labelDict = createLabelDict(df)
+    levelsInFigure_GUIWindow(labelDict)
+    levelValuesInFigure_GUIWindow(labelDict)
+    levelsToPlottingParameters_GUIWindow(labelDict,plotType,dataType)
+    if plotType in ['categorical','ordered','frequency']:
+        scatterLineBarSpecific_GUIWindow(labelDict,plotType,dataType)
+    elif plotType == 'heatmap':
+        heatmapSpecific_GUIWindow(labelDict,plotType,dataType)
+    else:
+        pass

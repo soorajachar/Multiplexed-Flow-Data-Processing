@@ -140,66 +140,94 @@ def reshapePlate(plateData,numConditions,numTimePoints,columnsPerTimePoint,conti
     miniPlateList = np.vsplit(miniPlate,columnsPerTimePoint)
     return miniPlateList
 
-def createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints,dataTypeLevelList,dataTypeLevelNames,paired,contiguous,replicateWise):
+def createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints,dataTypeLevelList,dataTypeLevelNames,paired,contiguous,replicateWise,alternatingPlatewise):
     
     #Get number of timepoints per plate, which is equal to the total length of the plate (12 columns) divided by the number of conditions per plate (numConditions/2). If numConditions is not a multiple of 16 (for example 14), round up to the highest multiple of 16 (math.ceil)
     totalSamplesA = 0
     totalSamplesB = 0
-    for i in range(0,int(numPlates/2)):
-        if paired:
-            plateIndexA = i*2
-            plateIndexB = plateIndexA + 1
-            totalSamplesB+=len(allRawData[plateIndexB].iloc[:,0])
-        else:
-            plateIndexA = i
-        totalSamplesA+=len(allRawData[plateIndexA].iloc[:,0])
-    
-    numConditionsA = int(totalSamplesA/numTimePoints)
-    if paired:
-        numConditionsB = int(totalSamplesB/numTimePoints)
-    columnsPerTimePoint = math.ceil(numConditionsA/plateWidth)
-
     baseDataFrameList = []
 
-    #Iterates through each plate 2 at a time (robot processes 2 plates at a time: A/B plates; each A/B set combined has all the conditions for a given experiment)
-    for levelIndex in range(len(dataTypeLevelList)):
-        masterMiniPlateAList = []
-        masterMiniPlateBList = []
+    if not alternatingPlatewise: 
         for i in range(0,int(numPlates/2)):
             if paired:
                 plateIndexA = i*2
                 plateIndexB = plateIndexA + 1
-                masterMiniPlateAList.append(reshapePlate(allRawData[plateIndexA].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
-                masterMiniPlateBList.append(reshapePlate(allRawData[plateIndexB].iloc[:,levelIndex+1],numConditionsB,numTimePoints,columnsPerTimePoint,contiguous))
+                totalSamplesB+=len(allRawData[plateIndexB].iloc[:,0])
             else:
-                plateIndex = i
-                masterMiniPlateAList.append(reshapePlate(allRawData[plateIndex].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
+                plateIndexA = i
+            totalSamplesA+=len(allRawData[plateIndexA].iloc[:,0])
+        
+        numConditionsA = int(totalSamplesA/numTimePoints)
+        if paired:
+            numConditionsB = int(totalSamplesB/numTimePoints)
+        columnsPerTimePoint = math.ceil(numConditionsA/plateWidth)
 
-        finalPlateMatrix = []
-        for i in range(len(masterMiniPlateAList)):
-            if paired:
-                if(replicateWise):
-                    finalPlateA = []
-                    finalPlateB = []
-                    for j in range(len(masterMiniPlateAList[0])):
-                        finalPlateA.append(masterMiniPlateAList[i][j])
-                    for j in range(len(masterMiniPlateBList[0])):
-                        finalPlateB.append(masterMiniPlateBList[i][j])
-                    finalPlateMatrix.append(np.vstack([np.vstack(finalPlateA),np.vstack(finalPlateB)]))
+        #Iterates through each plate 2 at a time (robot processes 2 plates at a time: A/B plates; each A/B set combined has all the conditions for a given experiment)
+        for levelIndex in range(len(dataTypeLevelList)):
+            masterMiniPlateAList = []
+            masterMiniPlateBList = []
+            for i in range(0,int(numPlates/2)):
+                if paired:
+                    plateIndexA = i*2
+                    plateIndexB = plateIndexA + 1
+                    masterMiniPlateAList.append(reshapePlate(allRawData[plateIndexA].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
+                    masterMiniPlateBList.append(reshapePlate(allRawData[plateIndexB].iloc[:,levelIndex+1],numConditionsB,numTimePoints,columnsPerTimePoint,contiguous))
                 else:
-                    tempPlateMatrix = []
+                    plateIndex = i
+                    masterMiniPlateAList.append(reshapePlate(allRawData[plateIndex].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
+
+            finalPlateMatrix = []
+            for i in range(len(masterMiniPlateAList)):
+                if paired:
+                    if(replicateWise):
+                        finalPlateA = []
+                        finalPlateB = []
+                        for j in range(len(masterMiniPlateAList[0])):
+                            finalPlateA.append(masterMiniPlateAList[i][j])
+                        for j in range(len(masterMiniPlateBList[0])):
+                            finalPlateB.append(masterMiniPlateBList[i][j])
+                        finalPlateMatrix.append(np.vstack([np.vstack(finalPlateA),np.vstack(finalPlateB)]))
+                    else:
+                        tempPlateMatrix = []
+                        for j in range(len(masterMiniPlateAList[0])):
+                            tempPlateMatrix.append(np.vstack([masterMiniPlateAList[i][j],masterMiniPlateBList[i][j]]))
+                        finalPlateMatrix.append(np.vstack(tempPlateMatrix))
+                else:
+                    finalPlate = []
                     for j in range(len(masterMiniPlateAList[0])):
-                        tempPlateMatrix.append(np.vstack([masterMiniPlateAList[i][j],masterMiniPlateBList[i][j]]))
-                    finalPlateMatrix.append(np.vstack(tempPlateMatrix))
-            else:
-                finalPlate = []
-                for j in range(len(masterMiniPlateAList[0])):
-                    finalPlate.append(masterMiniPlateAList[i][j])
-                finalPlateMatrix.append(np.vstack(finalPlate))
-        finalMatrix = np.hstack(finalPlateMatrix)
-        multiIndexedObject,timePointNames = createDataFrameLayout(folderName,dataTypeLevelList[levelIndex],dataTypeLevelNames)
-        baseDataFrame = pd.DataFrame(finalMatrix,index=multiIndexedObject,columns=timePointNames)
-        baseDataFrameList.append(baseDataFrame)
+                        finalPlate.append(masterMiniPlateAList[i][j])
+                    finalPlateMatrix.append(np.vstack(finalPlate))
+            finalMatrix = np.hstack(finalPlateMatrix)
+            multiIndexedObject,timePointNames = createDataFrameLayout(folderName,dataTypeLevelList[levelIndex],dataTypeLevelNames)
+            baseDataFrame = pd.DataFrame(finalMatrix,index=multiIndexedObject,columns=timePointNames)
+            baseDataFrameList.append(baseDataFrame)
+    else:
+        for levelIndex in range(len(dataTypeLevelList)):
+            maxPlates = 8
+            #Number of plates of a single condition required for all timepoints
+            platesPerTimePoint = math.ceil(numTimePoints/plateLength)
+            platesPerCondition = int(int(numPlates/2)/platesPerTimePoint)
+            upperCase = string.ascii_uppercase
+            plateIndex = 0
+            conditionlist = []
+            for i in range(platesPerCondition):
+                timepointlist = []
+                for j in range(platesPerTimepoint):
+                    timepointlist = timepointlist.append(np.reshape(list(allRawData[plateIndex]),(plateWidth,plateLength)))
+                    plateIndex+=1
+                conditionlist.append(timepointlist)
+            beforeCorrectingAlternatingMatrix = np.vstack(conditionlist)
+            finalMatrix = np.zeros(beforeCorrectingAlternatingMatrix.shape)
+            for alternate in range(platesPerTimePoint):
+                alternatingColumns = range(alternate,platesPerTimePoint*plateLength,platesPerTimePoint)
+                i=0
+                for column in range(alternate*plateLength,(alternate+1)*plateLength):
+                    finalMatrix[:,alternatingColumns[i]] = beforeCorrectingAlternatingMatrix[:,column]
+                    i+=1
+            multiIndexedObject,timePointNames = createDataFrameLayout(folderName,dataTypeLevelList[levelIndex],dataTypeLevelNames)
+            baseDataFrame = pd.DataFrame(finalMatrix,index=multiIndexedObject,columns=timePointNames)
+            baseDataFrameList.append(baseDataFrame)
+    
     combinedBaseDataFrame = pd.concat(baseDataFrameList)
     combinedBaseDataFrame.columns.name = 'Time'
     return combinedBaseDataFrame
@@ -241,18 +269,22 @@ def createFullDataFrames(folderName,secondPath,experimentNumber,concUnit,concUni
     
     paired = experimentParameters[6]
     contiguous = experimentParameters[7]
-    replicateWise = experimentParameters[8]
     #Grabs plate names (A1,A2 etc.)
     plateNames = experimentParameters[4]
     numPlates = len(plateNames)
     if not paired:
+        replicateWise = True
+        alternatingPlatewise = experimentParameters[8]
         numPlates*=2
-
+    else:
+        replicateWise = experimentParameters[8]
+        alternatingPlatewise = False
+    
     processedData = []
     if dataType == 'cyt':
         allRawData,newLevelList = cleanUpFlowjoCSV(plateNames,folderName,dataType)
-        finalDataFrame = createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints,newLevelList,cytokineHeaderNames,paired,contiguous,replicateWise)
-        
+        finalDataFrame = createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints,newLevelList,cytokineHeaderNames,paired,contiguous,replicateWise,alternatingPlatewise)
+
         with open('semiProcessedData/cytokineGFIPickleFile-'+folderName+'.pkl', "wb") as f:
             pickle.dump(finalDataFrame, f)
         
@@ -290,16 +322,16 @@ def createFullDataFrames(folderName,secondPath,experimentNumber,concUnit,concUni
         with open('semiProcessedData/cytokineConcentrationPickleFile-'+folderName+'.pkl', "wb") as f:
             pickle.dump(finalDataFrameConcentration, f)
         #Create and save modified Df (original concentration df with various modifications due to experimental error)
-        modifiedDf = returnModifiedDf(experimentNumber,finalDataFrame,dataType)
-        with open('semiProcessedData/cytokineGFIPickleFile-'+folderName+'-modified.pkl', "wb") as f:
-            pickle.dump(modifiedDf, f)
+        #modifiedDf = returnModifiedDf(experimentNumber,finalDataFrame,dataType)
+        #with open('semiProcessedData/cytokineGFIPickleFile-'+folderName+'-modified.pkl', "wb") as f:
+        #    pickle.dump(modifiedDf, f)
         modifiedConcentrationDf = returnModifiedDf(experimentNumber,finalDataFrameConcentration,dataType)
         with open('semiProcessedData/cytokineConcentrationPickleFile-'+folderName+'-modified.pkl', "wb") as f:
             pickle.dump(modifiedConcentrationDf, f)
         finalDataFrame = modifiedConcentrationDf
     if dataType == 'cell':
         allRawData,newLevelList = cleanUpFlowjoCSV(plateNames,folderName,dataType)
-        finalDataFrame = createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints,newLevelList,cellHeaderNames,paired,contiguous,replicateWise)
+        finalDataFrame = createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints,newLevelList,cellHeaderNames,paired,contiguous,replicateWise,alternatingPlatewise)
         #Create and save modified Df (original concentration df with various modifications due to experimental error)
         with open('semiProcessedData/cellStatisticPickleFile-'+folderName+'.pkl', "wb") as f:
             pickle.dump(finalDataFrame, f)
@@ -313,10 +345,7 @@ def createFullDataFrames(folderName,secondPath,experimentNumber,concUnit,concUni
     return finalDataFrame
 
 def convertDataFramestoExcel(folderName,secondPath,dataType,df,useModifiedDf):
-    if(useModifiedDf):
-        writer = pd.ExcelWriter('semiProcessedData/excelFile-'+folderName+'-'+dataType+'.xlsx')
-    else:
-        writer = pd.ExcelWriter('semiProcessedData/excelFile-'+folderName+'-'+dataType+'.xlsx')
+    writer = pd.ExcelWriter('semiProcessedData/excelFile-'+folderName+'-'+dataType+'.xlsx')
     if dataType == 'cyt':
         dfg = pickle.load(open('semiProcessedData/cytokineGFIPickleFile-'+folderName+'-modified.pkl','rb'))
         dfc = pickle.load(open('semiProcessedData/cytokineConcentrationPickleFile-'+folderName+'-modified.pkl','rb'))

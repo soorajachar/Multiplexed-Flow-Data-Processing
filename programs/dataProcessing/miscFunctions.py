@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 listOfCytokines=['IFNg','IL-2','IL-4','IL-6','IL-10','IL-17A','TNFa']
-sampleIDOrder = False
+sampleIDOrder = True
 
 def Hill(x, Amplitude, EC50, hill,Background):
     return np.log10(Amplitude * np.power(x,hill)/(np.power(EC50,hill)+np.power(x,hill))+Background)
@@ -46,6 +46,9 @@ def r_squared(xdata,ydata,func,popt):
 
 #Sample_A2_A02_002.fcs,
 def cleanUpFlowjoCSV(fileArray,folderName,dataType):
+    dataType2 = dataType
+    if dataType == 'cytcorr':
+        dataType = 'cyt'
     #Samples will be indexed based on well ID (A01, then A02 etc.)
     if not sampleIDOrder:
         orderWellID = {}
@@ -66,7 +69,6 @@ def cleanUpFlowjoCSV(fileArray,folderName,dataType):
                     wellID = temp.iloc[i,0].split('_')[2]
                 else:
                     wellID = temp.iloc[i,0]
-                print(wellID)
                 temp.iloc[i,0] = orderWellID[wellID]
             temp = temp.sort_values('Unnamed: 0')
             sortedData.append(temp[:-2])
@@ -79,11 +81,15 @@ def cleanUpFlowjoCSV(fileArray,folderName,dataType):
                 temp.iloc[i,0] = temp.iloc[i,0][temp.iloc[i,0].find('.')-3:temp.iloc[i,0].find('.')]
             temp = temp.sort_values('Unnamed: 0')
             sortedData.append(temp[:-2])
+    if dataType2 == 'cytcorr':
+        dataType = 'cytcorr'
     if(dataType == 'cyt'):
         newMultiIndex = parseCytokineCSVHeaders(pd.read_csv('semiProcessedData/A1_'+dataType+'.csv').columns)
     elif(dataType == 'cell'):
         panelData = pd.read_csv('inputFiles/antibodyPanel-'+folderName+'.csv',)
         newMultiIndex = parseCellCSVHeaders(pd.read_csv('semiProcessedData/A1_'+dataType+'.csv').columns,panelData)
+    elif(dataType == 'cytcorr'):
+        newMultiIndex = []
     return sortedData,newMultiIndex
 
 def parseCytokineCSVHeaders(columns):
@@ -232,6 +238,7 @@ def sortSINumerically(listSI,sort,descending):
         sortedListSI.append(listSI[elem])
     return sortedListSI,numericList
 
+#Used to interpret experimentnumbers
 def parseCommandLineNNString(inputString):
     if(',' in inputString):
         if('-' in inputString): # - and ,
@@ -257,3 +264,41 @@ def parseCommandLineNNString(inputString):
         return [experimentNumbers]
     else:
         return experimentNumbers
+
+#used for nonlexographic sort reindexing
+def reindexDataFrame(dfToReindex,indexdf,singlecellToNonSinglecell):
+    if indexdf.index.names[0] in ['Cytokine','Statistic']:
+        indexingDf = indexdf.loc[pd.unique(indexdf.index.get_level_values(0))[0]]
+    elif indexdf.index.names[0]  in ['CellType']:
+        indexingDf = indexdf.loc[pd.unique(indexdf.index.get_level_values(0))[0]].loc[pd.unique(indexdf.index.get_level_values(1))[0]].loc[pd.unique(indexdf.index.get_level_values(2))[0]]
+    else:
+        indexingDf = indexdf
+    if singlecellToNonSinglecell:
+        indexingDf = indexingDf.stack()
+        indexingDf = indexingDf.to_frame('temp')
+
+    idx = pd.IndexSlice
+    reindexedDfMatrix = np.zeros(dfToReindex.shape)
+    if not singlecellToNonSinglecell:
+        for row in range(indexingDf.shape[0]):
+            indexingLevelNames = tuple(indexingDf.iloc[row,:].name)
+            dfToReindexValues = dfToReindex.loc[idx[indexingLevelNames],:]
+            reindexedDfMatrix[row,:] = dfToReindexValues
+        reindexedDf = pd.DataFrame(reindexedDfMatrix,index=indexingDf.index,columns=dfToReindex.columns)
+    else:
+        k = 0
+        row = 0
+        reindexedLevelNames = []
+        while k < dfToReindex.shape[0]:
+            levelNames = tuple(indexingDf.iloc[row].name)
+            stackedLevelNames = tuple(list(levelNames)+[slice(None)])
+            dfToReindexValues = dfToReindex.loc[idx[stackedLevelNames],:]
+            stackedLength = dfToReindexValues.shape[0]
+            reindexedDfMatrix[k:k+stackedLength,:] = dfToReindexValues
+            for eventVal in range(1,1+stackedLength):
+                reindexedLevelNames.append(list(levelNames)+[eventVal])
+            row+=1
+            k+=stackedLength
+        reindexedMultiIndex = pd.MultiIndex.from_tuples(reindexedLevelNames,names=dfToReindex.index.names)
+        reindexedDf = pd.DataFrame(reindexedDfMatrix,index=reindexedMultiIndex,columns=dfToReindex.columns)
+    return reindexedDf

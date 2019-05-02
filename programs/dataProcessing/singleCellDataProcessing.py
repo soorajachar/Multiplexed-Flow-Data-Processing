@@ -8,6 +8,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import processProliferationData as proliferationProcesser
 from modifyDataFrames import returnModifiedDf
+from miscFunctions import reindexDataFrame
 
 def createInitialSingleCellDataFrame(folderName,experimentNumber):
     with open('inputFiles/experimentParameters-'+folderName+'.json') as f:
@@ -50,13 +51,24 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
                 experimentalMarkerNames.append(experimentalChannelNames[i].split(' :: ')[1])
             else:
                 experimentalMarkerNames.append(experimentalChannelNames[i])
-    
+    #If paired
+    if(experimentParameters[6]):
+        platesPerCondition = int(len(experimentParameters[4])/2)
+    else:
+        platesPerCondition = int(len(experimentParameters[4]))
+    timeSplit = int(numTimePoints/platesPerCondition)
     emptyDf = np.zeros([numConditions,numTimePoints])
     fullDataFrame = pd.DataFrame(emptyDf,index=multiIndexedObject,columns=timePointNames)
     fullDataFrame.columns.name = 'Time'
+    levelValues = []
+    for timeSplitIndex in range(platesPerCondition):
+        for row in range(fullDataFrame.shape[0]):
+            conditionLabel = fullDataFrame.iloc[row,:].name
+            for col in range(timeSplitIndex*timeSplit,(timeSplitIndex+1)*timeSplit):
+                timeLabel = fullDataFrame.iloc[:,col].name
+                levelValues.append(list(conditionLabel)+[timeLabel])
     #fullDataFrame = returnModifiedDf(experimentNumber,fullDataFrame,'cell') 
     stackedDf = fullDataFrame.stack()
-    levelValues = stackedDf.index.get_values()
     levelNames = list(stackedDf.index.names)
 
     #Grabs plate names (A1,A2 etc.)
@@ -90,7 +102,7 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
                 if(fname != None):
                     fileList.append(fname)
             bigList = []
-            if experimentParameters[6]: 
+            if experimentParameters[6]:
                 for fileName,index in zip(fileList,range(len(fileList))):
                     fcsDf = pd.read_csv(fileName,header=0)
                     eventNumber = fcsDf.shape[0]
@@ -103,8 +115,6 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
                     newNames = levelNames.copy()
                     newNames.append('Event')
                     newMultiIndex = pd.MultiIndex.from_tuples(allLevelValues,names=newNames)
-                    if fcsDf.shape[1] == 12 and experimentNumber == 87:
-                        fcsDf = fcsDf.drop('Comp-APC-A :: CTFR',axis=1)
                     newDf = pd.DataFrame(fcsDf.values,index=newMultiIndex,columns=experimentalMarkerNames)
                     bigList.append(newDf)
                 plateDf = pd.concat(bigList)
@@ -140,24 +150,75 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
                 completeDataFrameList.append(newDf)
         completeDf = pd.concat(completeDataFrameList)
         #completeDf = returnModifiedDf(experimentNumber,completeDf,'sc')
+        completeDf = reindexDataFrame(completeDf,fullDataFrame,True)
         with open('../../semiProcessedData/initialSingleCellDf-'+scalingType+'-'+folderName+'.pkl','wb') as f:
             pickle.dump(completeDf,f)
     os.chdir('../..')
 
-def createProliferationSingleCellDataFrame(folderName,secondPath,useModifiedDf):
-    #logicleDataFull = pickle.load(open('semiProcessedData/initialSingleCellDf-channel-'+folderName+'.pkl','rb'))['TCell_Gate']
-    #rawDataFull = pickle.load(open('semiProcessedData/initialSingleCellDf-scale-'+folderName+'.pkl','rb'))['TCell_Gate']
-    #print(logicleDataFull.loc['100K','N4','1nM',72.0].shape)
-    #logicleData,rawData = proliferationProcesser.createProliferationData(folderName,logicleDataFull,rawDataFull)
-    #ggl,tv,tl = proliferationProcesser.returnGatesAndTicks(logicleData,rawData)
-    #proliferationProcesser.processProliferationData(folderName,logicleData,rawData,ggl,tv,tl,logicleDataFull.index)
-    bulkprolifdf = proliferationProcesser.generateBulkProliferationStatistics(folderName)
+def createProliferationSingleCellDataFrame(folderName,secondPath,experimentNumber,useModifiedDf):
+    logicleDataFull = pickle.load(open('semiProcessedData/initialSingleCellDf-channel-'+folderName+'.pkl','rb'))['TCell_Gate']
+    rawDataFull = pickle.load(open('semiProcessedData/initialSingleCellDf-scale-'+folderName+'.pkl','rb'))['TCell_Gate']
+    logicleData,rawData = proliferationProcesser.createProliferationData(folderName,logicleDataFull,rawDataFull)
+    ggl,tv,tl = proliferationProcesser.returnGatesAndTicks(logicleData,rawData)
+    proliferationProcesser.processProliferationData(folderName,logicleData,rawData,ggl,tv,tl,logicleDataFull)
+    bulkprolifdf = proliferationProcesser.generateBulkProliferationStatistics(folderName,experimentNumber)
     return bulkprolifdf
 
-def createCytokineSingleCellDataFrame(folderName):
+def createCompleteSingleCellDf(folderName):
+   
     idx = pd.IndexSlice
+    
     initialSingleCellDf = pickle.load(open('semiProcessedData/initialSingleCellDf-channel-'+folderName+'.pkl','rb'))
+    initialSingleCellDf = initialSingleCellDf.drop(['APC_Gate','TCell_Gate'],axis=1)
     bulkCytokineConcentrationDf = pickle.load(open('semiProcessedData/cytokineConcentrationPickleFile-'+folderName+'-modified.pkl','rb'))
+    proliferationDf = pickle.load(open('semiProcessedData/singleCellDataFrame-proliferation-'+folderName+'.pkl','rb'))
+
+    bulkCellStatisticDf = pickle.load(open('semiProcessedData/cellStatisticPickleFile-'+folderName+'-modified.pkl','rb'))
+
+    cytokineLevelNamesUM = []
+    cytokineLevelNames = []
+    cellLevelNames = []
+
+    tempCellLevels = list(bulkCellStatisticDf.iloc[0,:].name)[:3]
+    tempCellDf = bulkCellStatisticDf.loc[tempCellLevels[0]].loc[tempCellLevels[1]].loc[tempCellLevels[2]]
+
+    tempCytokineLevels = list(bulkCytokineConcentrationDf.iloc[0,:].name)[:1]
+    tempCytokineDf = bulkCytokineConcentrationDf.loc[tempCytokineLevels[0]]
+    
+    unmodifiedCytokineConcentrationDf = pickle.load(open('semiProcessedData/cytokineConcentrationPickleFile-'+folderName+'.pkl','rb')).loc[tempCytokineLevels[0]]
+    
+    for row in range(tempCellDf.shape[0]):
+        levelNames = list(tempCellDf.iloc[row,:].name)
+        for column in tempCellDf.columns:
+            cellLevelNames.append(tuple(levelNames+[column]))
+    for row in range(tempCytokineDf.shape[0]):
+        levelNames = list(tempCytokineDf.iloc[row,:].name)
+        for column in tempCytokineDf.columns:
+            cytokineLevelNames.append(tuple(levelNames+[column]))
+    for row in range(unmodifiedCytokineConcentrationDf.shape[0]):
+        levelNames = list(unmodifiedCytokineConcentrationDf.iloc[row,:].name)
+        for column in unmodifiedCytokineConcentrationDf.columns:
+            cytokineLevelNamesUM.append(tuple(levelNames+[column]))
+    
+    differences = list((set(tuple(cytokineLevelNamesUM)) | set(tuple(cytokineLevelNames)) | set(tuple(cellLevelNames))) - (set(tuple(cytokineLevelNamesUM)) & set(tuple(cytokineLevelNames)) & set(tuple(cellLevelNames))))
+    levelsToKeep = [0]*initialSingleCellDf.shape[0]
+    k=0
+    row = 0
+    while row < initialSingleCellDf.shape[0]:
+        levelNames = tuple(initialSingleCellDf.iloc[row,:].name)[:-1]
+        stackedLevelNames = tuple(list(levelNames)+[slice(None)])
+        stackedLength = initialSingleCellDf.loc[stackedLevelNames,:].shape[0]
+        #Check logic here later; should do for now
+        if (tuple(levelNames) in differences):
+            print(levelNames)
+            pass
+        else:
+            rowVals = range(row,row+stackedLength)
+            levelsToKeep[k:k+stackedLength] = rowVals
+            k+=stackedLength
+        row+=stackedLength
+    initialSingleCellDf = initialSingleCellDf.iloc[levelsToKeep[:k],:]
+    proliferationDf = proliferationDf.iloc[levelsToKeep[:k],:]
     indexList = []
     numEventsList = []
     for elem in pd.unique(initialSingleCellDf.index):
@@ -176,28 +237,8 @@ def createCytokineSingleCellDataFrame(folderName):
         completeSingleCellCytokineValues.append(np.concatenate(individualCytokineSingleCellValues))
     singleCellCytokineMatrix = np.stack(completeSingleCellCytokineValues,axis=1)
     singleCellCytokineDf = pd.DataFrame(singleCellCytokineMatrix,index=initialSingleCellDf.index,columns=pd.unique(bulkCytokineConcentrationDf.index.get_level_values(0)))
-    with open('semiProcessedData/singleCellDataFrame-cytokines-'+folderName+'.pkl', 'wb') as f:
-        pickle.dump(singleCellCytokineDf,f)
-
-def createCellSingleCellDf(folderName):
-    idx = pd.IndexSlice
-    initialSingleCellDf = pickle.load(open('semiProcessedData/initialSingleCellDf-channel-'+folderName+'.pkl','rb'))
-    actualMarkers = []
-    for marker in pd.unique(initialSingleCellDf.columns.get_level_values(0)):
-        if 'APC_' not in marker:
-            actualMarkers.append(marker)
-    singleCellMarkerDf = initialSingleCellDf.loc[idx[:],idx[tuple(actualMarkers)]]
-    with open('semiProcessedData/singleCellDataFrame-markers-'+folderName+'.pkl', 'wb') as f:
-        pickle.dump(singleCellMarkerDf,f)
-
-def createCompleteSingleCellDf(folderName):
-   markerdf = pickle.load(open('semiProcessedData/singleCellDataFrame-markers-'+folderName+'.pkl','rb'))
-   cytokinedf = pickle.load(open('semiProcessedData/singleCellDataFrame-cytokines-'+folderName+'.pkl','rb'))
-   #proliferationdf = pickle.load(open('semiProcessedData/singleCellDataFrame-proliferation-'+folderName+'.pkl','rb') )
-   completeSingleCellDf = pd.concat([markerdf,cytokinedf],keys=['Markers','Cytokines'],names=['DataType','Parameter'],axis=1)
-   print(completeSingleCellDf)
-   with open('semiProcessedData/singleCellDataFrame-complete-'+folderName+'.pkl','wb') as f:
-       pickle.dump(completeSingleCellDf,f)
-   with open('../../output/singleCellDataFrames/singleCellDataFrame-complete-'+folderName+'.pkl','wb') as f:
-       pickle.dump(completeSingleCellDf,f)
-
+     
+    completeSingleCellDf = pd.concat([initialSingleCellDf,singleCellCytokineDf,proliferationDf],keys=['Markers','Cytokines','Proliferation'],names=['DataType','Parameter'],axis=1)
+    print(completeSingleCellDf)
+    with open('semiProcessedData/singleCellDataFrame-complete-'+folderName+'.pkl','wb') as f:
+        pickle.dump(completeSingleCellDf,f)
