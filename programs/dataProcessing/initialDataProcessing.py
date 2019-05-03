@@ -5,7 +5,7 @@ created on sat jul 21 13:12:56 2018
 
 @author: acharsr
 """
-import json,pickle,math,matplotlib,sys,os
+import json,pickle,math,matplotlib,sys,os,string
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -212,10 +212,10 @@ def createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints
             conditionlist = []
             for i in range(platesPerCondition):
                 timepointlist = []
-                for j in range(platesPerTimepoint):
-                    timepointlist = timepointlist.append(np.reshape(list(allRawData[plateIndex]),(plateWidth,plateLength)))
+                for j in range(platesPerTimePoint):
+                    timepointlist.append(np.reshape(list(allRawData[plateIndex].iloc[:,levelIndex+1]),(plateWidth,plateLength)))
                     plateIndex+=1
-                conditionlist.append(timepointlist)
+                conditionlist.append(np.hstack(timepointlist))
             beforeCorrectingAlternatingMatrix = np.vstack(conditionlist)
             finalMatrix = np.zeros(beforeCorrectingAlternatingMatrix.shape)
             for alternate in range(platesPerTimePoint):
