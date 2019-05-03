@@ -107,33 +107,63 @@ def parseCellCSVHeaders(columns,panelData):
     for column in columns[1:-1]:
         populationNameVsStatisticSplit = column.split(' | ')
         fullPopulationName = populationNameVsStatisticSplit[0]
-        populationDivisionIndices = [i for i,c in enumerate(fullPopulationName) if c=='/']
-        #Positive cell percentage statistics do not have channel names, so treat differently
-        if('Freq.' in populationNameVsStatisticSplit[1]):
-            cellType = fullPopulationName[populationDivisionIndices[-2]+1:populationDivisionIndices[-1]]
-            marker = fullPopulationName[populationDivisionIndices[-1]+1:len(fullPopulationName)-1]
-            statistic = '% Positive'
-        elif('Count' in populationNameVsStatisticSplit[1]):
-            cellType = fullPopulationName[populationDivisionIndices[-1]+1:]
-            #cellType = fullPopulationName[populationDivisionIndices[-2]+1:populationDivisionIndices[-1]]
-            marker = 'NotApplicable'
-            statistic = populationNameVsStatisticSplit[1]
-        else:
-            #GFI of positive populations vs overall TCell GFI
-            if('+' in populationNameVsStatisticSplit[0]):
+        #Statistics can be performed on the whole cell population, in which case the cellType is allEvents
+        if '/' in fullPopulationName:
+            populationDivisionIndices = [i for i,c in enumerate(fullPopulationName) if c=='/']
+            #Positive cell percentage statistics do not have channel names, so treat differently
+            if('Freq.' in populationNameVsStatisticSplit[1]):
                 cellType = fullPopulationName[populationDivisionIndices[-2]+1:populationDivisionIndices[-1]]
                 marker = fullPopulationName[populationDivisionIndices[-1]+1:len(fullPopulationName)-1]
-                statistic = 'Positive GFI'
-            else:
+                statistic = '% Positive'
+            elif('Count' in populationNameVsStatisticSplit[1]):
                 cellType = fullPopulationName[populationDivisionIndices[-1]+1:]
-                statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (Comp-')
-                if('Geometric' in statisticVsChannelSplit[0]):
-                    statistic = 'GFI'
+                #cellType = fullPopulationName[populationDivisionIndices[-2]+1:populationDivisionIndices[-1]]
+                marker = 'NotApplicable'
+                statistic = populationNameVsStatisticSplit[1]
+            else:
+                #GFI of positive populations vs overall TCell GFI
+                if('+' in populationNameVsStatisticSplit[0]):
+                    cellType = fullPopulationName[populationDivisionIndices[-2]+1:populationDivisionIndices[-1]]
+                    marker = fullPopulationName[populationDivisionIndices[-1]+1:len(fullPopulationName)-1]
+                    statistic = 'Positive GFI'
                 else:
-                    statistic = statisticVsChannelSplit[0]
-                channel = statisticVsChannelSplit[1][:-1]
-                panelIndex = list(panelData['FCSDetectorName']).index(channel)
-                marker = panelData['Marker'][panelIndex]
+                    cellType = fullPopulationName[populationDivisionIndices[-1]+1:]
+                    statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (Comp-')
+                    if('Geometric' in statisticVsChannelSplit[0]):
+                        statistic = 'GFI'
+                    else:
+                        statistic = statisticVsChannelSplit[0]
+                    channel = statisticVsChannelSplit[1][:-1]
+                    panelIndex = list(panelData['FCSDetectorName']).index(channel)
+                    marker = panelData['Marker'][panelIndex]
+        else:
+            cellType = 'allEvents'
+            #Statistics can be performed on the whole cell population, in which case the cellType is allEvents
+            #DAPI+ | Freq. of Parent (%)
+            #Positive cell percentage statistics do not have channel names, so treat differently
+            if('Freq.' in populationNameVsStatisticSplit[1]):
+                marker = fullPopulationName[:len(fullPopulationName)-1]
+                statistic = '% Positive'
+            elif('Count' in populationNameVsStatisticSplit[1]):
+                marker = 'NotApplicable'
+                statistic = populationNameVsStatisticSplit[1]
+            else:
+                #GFI of positive populations vs overall TCell GFI
+                if('+' in populationNameVsStatisticSplit[0]):
+                    marker = fullPopulationName[:len(fullPopulationName)-1]
+                    statistic = 'Positive GFI'
+                else:
+                    if 'Comp-' in populationNameVsStatisticSplit[1]:
+                        statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (Comp-')
+                    else:
+                        statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (')
+                    if('Geometric' in statisticVsChannelSplit[0]):
+                        statistic = 'GFI'
+                    else:
+                        statistic = statisticVsChannelSplit[0]
+                    channel = statisticVsChannelSplit[1][:-1]
+                    panelIndex = list(panelData['FCSDetectorName']).index(channel)
+                    marker = panelData['Marker'][panelIndex]
 
         newMultiIndexList.append([cellType,marker,statistic])
     return newMultiIndexList
@@ -281,7 +311,10 @@ def reindexDataFrame(dfToReindex,indexdf,singlecellToNonSinglecell):
     reindexedDfMatrix = np.zeros(dfToReindex.shape)
     if not singlecellToNonSinglecell:
         for row in range(indexingDf.shape[0]):
-            indexingLevelNames = tuple(indexingDf.iloc[row,:].name)
+            if isinstance(indexingDf.iloc[row].index.name, (list,)):
+                indexingLevelNames = tuple(indexingDf.iloc[row].name)
+            else:
+                indexingLevelNames = indexingDf.iloc[row].name
             dfToReindexValues = dfToReindex.loc[idx[indexingLevelNames],:]
             reindexedDfMatrix[row,:] = dfToReindexValues
         reindexedDf = pd.DataFrame(reindexedDfMatrix,index=indexingDf.index,columns=dfToReindex.columns)

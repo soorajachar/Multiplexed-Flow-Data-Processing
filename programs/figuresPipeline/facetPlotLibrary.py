@@ -28,12 +28,13 @@ buttonXStart = 0.5-(0.01+buttonWidth)
 buttonYStart = 0.01
 
 #Get level names and values into an easily accessible dictionary
-def createLabelDict(df):
+def createLabelDict(df,dataType):
     fulldf = df.stack()
     labelDict = {}
     for i in range(fulldf.index.nlevels):
         levelName = fulldf.index.levels[i].name
-        labelDict[levelName] = list(pd.unique(fulldf.index.get_level_values(levelName)))
+        if levelName != 'Event':
+            labelDict[levelName] = list(pd.unique(fulldf.index.get_level_values(levelName)))
     return labelDict
 
 def levelsInFigure_GUIWindow(labelDict):
@@ -189,50 +190,53 @@ def produceSubsettedDataFrames(folderName,secondPath,df,useModifiedDf):
     allLevels = []
 
     figureLevels = []
-    withinFigureLevels = []
     withinFigureSubsettedLevelValues = []
     figureSubsettedLevelValues = []
     
     levelValuesPlottedIndividually = []
     subsettedDfList = []
     subsettedDfListTitles = []
+    k=0
     for i in range(0,fulldf.index.nlevels):
         currentLevelName = fulldf.index.levels[i].name
-        currentLevelValues = pd.unique(fulldf.index.get_level_values(currentLevelName))
-        
-        if withinFigureBoolean[i]:
+        if currentLevelName == 'Event':
             allLevels.append('wf')
-            withinFigureLevels.append(currentLevelName)
-            numSpecified = 0
-            for specificBoolean in specificValueBooleanList[i]:
-                if specificBoolean:
-                    numSpecified+=1
-            if numSpecified < len(list(currentLevelValues)):
-                tempSubsettedLevelValues = []
-                for j in range(len(currentLevelValues)):
-                    if specificValueBooleanList[i][j]:
-                        tempSubsettedLevelValues.append(currentLevelValues[j])
-                        levelValuesPlottedIndividually.append(str(currentLevelValues[j]))
-                withinFigureSubsettedLevelValues.append(tempSubsettedLevelValues)
-            else:
-                withinFigureSubsettedLevelValues.append(slice(None))
+            withinFigureSubsettedLevelValues.append(slice(None))
         else:
-            print('figure')
-            allLevels.append('f')
-            figureLevels.append(currentLevelName)
-            numSpecified = 0
-            for specificBoolean in specificValueBooleanList[i]:
-                if specificBoolean:
-                    numSpecified+=1
-            if numSpecified < len(list(currentLevelValues)):
-                tempSubsettedLevelValues = []
-                for j in range(len(currentLevelValues)):
-                    if specificValueBooleanList[i][j]:
-                        tempSubsettedLevelValues.append(currentLevelValues[j])
-                        levelValuesPlottedIndividually.append(str(currentLevelValues[j]))
-                figureSubsettedLevelValues.append(tempSubsettedLevelValues)
+            currentLevelValues = pd.unique(fulldf.index.get_level_values(currentLevelName))
+            if withinFigureBoolean[k]:
+                allLevels.append('wf')
+                numSpecified = 0
+                for specificBoolean in specificValueBooleanList[k]:
+                    if specificBoolean:
+                        numSpecified+=1
+                if numSpecified < len(list(currentLevelValues)):
+                    tempSubsettedLevelValues = []
+                    for j in range(len(currentLevelValues)):
+                        if specificValueBooleanList[k][j]:
+                            tempSubsettedLevelValues.append(currentLevelValues[j])
+                            levelValuesPlottedIndividually.append(str(currentLevelValues[j]))
+                    withinFigureSubsettedLevelValues.append(tempSubsettedLevelValues)
+                else:
+                    withinFigureSubsettedLevelValues.append(slice(None))
             else:
-                figureSubsettedLevelValues.append(currentLevelValues)
+                print('figure')
+                allLevels.append('f')
+                figureLevels.append(currentLevelName)
+                numSpecified = 0
+                for specificBoolean in specificValueBooleanList[k]:
+                    if specificBoolean:
+                        numSpecified+=1
+                if numSpecified < len(list(currentLevelValues)):
+                    tempSubsettedLevelValues = []
+                    for j in range(len(currentLevelValues)):
+                        if specificValueBooleanList[k][j]:
+                            tempSubsettedLevelValues.append(currentLevelValues[j])
+                            levelValuesPlottedIndividually.append(str(currentLevelValues[j]))
+                    figureSubsettedLevelValues.append(tempSubsettedLevelValues)
+                else:
+                    figureSubsettedLevelValues.append(currentLevelValues)
+            k+=1
     
     figureCombos = itertools.product(*figureSubsettedLevelValues)
     for figureCombo in figureCombos:
@@ -261,7 +265,7 @@ def produceSubsettedDataFrames(folderName,secondPath,df,useModifiedDf):
             subsettedDfList.append(subsetteddf)
             subsettedDfListTitles.append(subsettingTitle)
 
-    return subsettedDfList,subsettedDfListTitles,withinFigureLevels,figureLevels,levelValuesPlottedIndividually
+    return subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually
 
 def createFacetPlotName(folderName,dataType,plotType,subPlotType,legendParameterToLevelNameDict,subsettedDfTitle,levelsPlottedIndividually,useModifiedDf,axisScaling):
     delimiter1 = '-'
@@ -316,6 +320,8 @@ def createFacetPlotName(folderName,dataType,plotType,subPlotType,legendParameter
         fullTitleString = fullTitleString.replace("/", "_")
     if '.' in fullTitleString:
         fullTitleString = fullTitleString.replace(".", "_")
+    if ' ' in fullTitleString:
+        fullTitleString = fullTitleString.replace(" ", "_")
     return fullTitleString
 
 def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureParameters,levelsPlottedIndividually,useModifiedDf,fulldf):
@@ -332,11 +338,14 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
     for subsettedDf,subsettedDfTitle in zip(subsettedDfList,subsettedDfListTitles):
         #Assign all levels to plot parameters in catplot/relplot; reassign x/y axis level names to desired x/y axis titles
         kwargs = {}
-        heatmapkwargs = {}
+        facetgridkwargs = {}
         for parameter in legendParameterToLevelNameDict:
-            if isinstance(legendParameterToLevelNameDict[parameter], (list,)):
-                if parameter == 'Y Axis Values' and plotType == 'heatmap':
-                    kwargs['y'] = legendParameterToLevelNameDict[parameter]
+            if parameter == 'Y Axis Values':
+                if plotType == 'heatmap':
+                    if isinstance(legendParameterToLevelNameDict[parameter], (list,)):
+                        kwargs['y'] = legendParameterToLevelNameDict[parameter]
+                    else:
+                        kwargs['y'] = legendParameterToLevelNameDict[parameter]
             else:
                 currentLevel = legendParameterToLevelNameDict[parameter]
             if parameter == 'Color':
@@ -356,8 +365,8 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 else:
                     levelValues = unorderedLevelValues
                 kwargs['col_order'] = levelValues
-                heatmapkwargs['col'] = kwargs['col']
-                heatmapkwargs['col_order'] = kwargs['col_order']
+                facetgridkwargs['col'] = kwargs['col']
+                facetgridkwargs['col_order'] = kwargs['col_order']
             elif parameter == 'Row':
                 kwargs['row'] = currentLevel
                 unorderedLevelValues = list(pd.unique(subsettedDf.index.get_level_values(currentLevel)))
@@ -366,29 +375,35 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 else:
                     levelValues = unorderedLevelValues
                 kwargs['row_order'] = levelValues
-                heatmapkwargs['row'] = kwargs['row']
-                heatmapkwargs['row_order'] = kwargs['row_order']
+                facetgridkwargs['row'] = kwargs['row']
+                facetgridkwargs['row_order'] = kwargs['row_order']
             elif parameter == 'X Axis Values':
                 print(currentLevel)
                 subsettedDf.index.set_names(plotOptions['axisTitles']['X Axis'],level=currentLevel,inplace=True)
                 kwargs['x'] = plotOptions['axisTitles']['X Axis']
         #Assign y axis (or color bar axis) parameter
-        if plotType != 'heatmap':
-            if 'Statistic' in figureParameters:
-                subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
-                kwargs['y'] = subsettedDfTitle[figureParameters.index('Statistic')]
+        if subPlotType not in ['kde','histogram']:
+            if plotType != 'heatmap':
+                if 'Statistic' in figureParameters:
+                    subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
+                    kwargs['y'] = subsettedDfTitle[figureParameters.index('Statistic')]
+                else:
+                    subsettedDf.columns = [plotOptions['axisTitles']['Y Axis']]
+                    kwargs['y'] = plotOptions['axisTitles']['Y Axis']
             else:
-                subsettedDf.columns = [plotOptions['axisTitles']['Y Axis']]
-                kwargs['y'] = plotOptions['axisTitles']['Y Axis']
+                if 'Statistic' in figureParameters:
+                    subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
+                    kwargs['z'] = subsettedDfTitle[figureParameters.index('Statistic')]
+                else:
+                    subsettedDf.columns = [plotOptions['axisTitles']['Colorbar Axis']]
+                    kwargs['z'] = plotOptions['axisTitles']['Colorbar Axis']
         else:
-            if 'Statistic' in figureParameters:
-                subsettedDf.columns = [subsettedDfTitle[figureParameters.index('Statistic')]]
-                kwargs['z'] = subsettedDfTitle[figureParameters.index('Statistic')]
-            else:
-                subsettedDf.columns = [plotOptions['axisTitles']['Colorbar Axis']]
-                kwargs['z'] = plotOptions['axisTitles']['Colorbar Axis']
+            pass
 
-        plottingDf = subsettedDf.copy()
+        if dataType == 'singlecell':
+            plottingDf = subsettedDf.stack().to_frame('GFI')
+        else:
+            plottingDf = subsettedDf.copy()
         #Converts wide form dataframe into long form required for cat/relplot
         plottingDf = plottingDf.reset_index()
         #Use plot options file to initialize plot parameters: axis scaling, numeric x axis ordering
@@ -418,14 +433,34 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
         if plotType == 'categorical':
             ax = sns.catplot(**kwargs,data=plottingDf,kind=subPlotType)
         elif plotType == 'frequency':
-            gfiDf = pd.DataFrame({'GFI':df.values.ravel()})
-            plottingDf = pd.concat([plottingDf,gfiDf],axis=1)
-            g = sns.FacetGrid(plottingDf,**kwargs,legend_out=True,sharey=False)
-            g.map(sns.distplot,'GFI',kde=False,bins=256)
-            for ax in g.axes.flat:
-                box = ax.get_position()
-                ax.set_position([box.x0,box.y0,box.width*0.85,box.height])
-            plt.legend(loc='upper left',bbox_to_anchor=(1,0.5))
+            print(dataType)
+            if dataType != 'singlecell':
+                gfiDf = pd.DataFrame({'GFI':df.values.ravel()})
+                plottingDf = pd.concat([plottingDf,gfiDf],axis=1)
+                g = sns.FacetGrid(plottingDf,**kwargs,legend_out=True,sharey=False)
+                g.map(sns.distplot,'GFI',kde=False,bins=256)
+                for ax in g.axes.flat:
+                    box = ax.get_position()
+                    ax.set_position([box.x0,box.y0,box.width*0.85,box.height])
+                plt.legend(loc='upper left',bbox_to_anchor=(1,0.5))
+            else:
+                if 'row' not in facetgridkwargs.keys():
+                    kwargs['col_wrap'] = 6
+                    aspect = 1
+                else:
+                    aspect = math.ceil(len(list(pd.unique(plottingDf.index.get_level_values(kwargs['col']))))/6.0)
+
+                g = sns.FacetGrid(plottingDf,sharey=False,legend_out=True,aspect=aspect,**kwargs)
+                freqkwargs = {}
+                for kwargkey in kwargs.keys():
+                    if kwargkey not in facetgridkwargs.keys():
+                        freqkwargs[kwargkey] = kwargs[kwargkey]
+                #Higher bandwidth; more smooth, lower, less smooth
+                if subPlotType == 'kde':
+                    g.map(sns.kdeplot,'GFI',shade=True,bw=15)
+                elif subPlotType == 'histogram':
+                    g.map(sns.distplot,'GFI',bins=256,kde_kws={"color": "k", "alpha": 0},**freqkwargs)
+                g.add_legend()
         elif plotType == 'heatmap':
             idx = pd.IndexSlice
             def draw_heatmap(data,xaxis,yaxis,zaxis, **kwargs):
@@ -436,6 +471,7 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                         indexingList.append(list(pd.unique(fulldf.index.get_level_values(name)))[0])
                     else:
                         indexingList.append(list(pd.unique(unsortedPivotedData.index.get_level_values(name))))
+                print('wat')
                 indexlist = []
                 for levelIndex in range(len(indexingList)):
                     levelVal = indexingList[levelIndex]
@@ -498,7 +534,7 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 a = astart
             print('h: '+str(h))
             print('a: '+str(a))
-            fg = sns.FacetGrid(plottingDf,height=h,aspect=a,gridspec_kws={"wspace":0.4},**heatmapkwargs)
+            fg = sns.FacetGrid(plottingDf,height=h,aspect=a,gridspec_kws={"wspace":0.4},**facetgridkwargs)
             if 'row' not in kwargs.keys() and 'col' not in kwargs.keys():
                 cbarBoolean = True
                 cbarBoolean = False
@@ -554,13 +590,15 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
                 if i % 4 != 0:
                     xticks[i].set_visible(False) 
         """
-        fg.fig.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
-        #plt.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
+        if plotType == 'heatmap':
+            fg.fig.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
+        else:
+            plt.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
         print(fullTitleString+' plot saved')
         plt.clf()
 
 def facetPlottingGUI(df,plotType,dataType):
-    labelDict = createLabelDict(df)
+    labelDict = createLabelDict(df,dataType)
     levelsInFigure_GUIWindow(labelDict)
     levelValuesInFigure_GUIWindow(labelDict)
     levelsToPlottingParameters_GUIWindow(labelDict,plotType,dataType)

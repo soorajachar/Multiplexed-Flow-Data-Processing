@@ -10,7 +10,24 @@ def createHistograms(logicleDf,fileName):
     idx = pd.IndexSlice
     logicleDf.columns.name = 'Markers'
     #Remove FSC and SSC populations and convert dataframe into single column
-    histogramDf = logicleDf.iloc[:,2:].stack()
+    histogramDf = logicleDf.iloc[:,2:]
+    markersToPlot = ['H-2Kb','PD-L1']
+    #[46, 44, 41, 38, 34, 30, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 12, 10, 8, 6, 4]
+    timePointsToPlot = list(pd.unique(histogramDf.index.get_level_values('Time')))[::4]
+    #timePointsToPlot = [46.0,4.0]
+    #histogramDf = histogramDf.loc[idx[:,:],idx[markersToPlot]]
+    #histogramDf = histogramDf.loc[idx[:,timePointsToPlot],idx[markersToPlot]]
+    for marker in markersToPlot:
+        subsettedDf = histogramDf.loc[:,marker]
+        subsettedDf = subsettedDf.to_frame('GFI')
+        plottingDf = subsettedDf.reset_index()
+        g = sns.FacetGrid(plottingDf,hue='IFNgPulseConcentration',col='Time',sharey=False,aspect=2,legend_out=True,col_wrap=6)
+        #Higher bandwidth; more smooth, lower, less smooth
+        g.map(sns.kdeplot,'GFI',shade=True,bw=15)
+        g.add_legend()
+        plt.savefig('fullyProcessedFigures/histograms-'+fileName+'-'+marker+'.png')
+        
+    """
     markerSpecificList = []
     #Select only the events in the channel the single stain is testing
     for marker in pd.unique(histogramDf.index.get_level_values('Antibody')):
@@ -33,3 +50,4 @@ def createHistograms(logicleDf,fileName):
     #Save figure
     plt.savefig('fullyProcessedFigures/antibodyTitration-'+fileName+'.png')
     plt.close()
+    """

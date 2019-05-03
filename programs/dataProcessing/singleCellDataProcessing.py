@@ -28,7 +28,8 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
         timePointNames.append(float(timepoints[i]))
     
     #Grabs a file from samples to read marker names off of
-    tempFilePath = 'semiProcessedData/singleCellData/A1/TCells/' 
+    cellType = os.listdir('semiProcessedData/singleCellData/A1/')[0]
+    tempFilePath = 'semiProcessedData/singleCellData/A1/'+cellType+'/' 
     fileExtension = '.csv'
     print(os.getcwd())
     tempFileName = glob.glob(tempFilePath+'*'+fileExtension)[0]
@@ -51,26 +52,49 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
                 experimentalMarkerNames.append(experimentalChannelNames[i].split(' :: ')[1])
             else:
                 experimentalMarkerNames.append(experimentalChannelNames[i])
+    plateLength = 12
+    plateWidth = 8
     #If paired
     if(experimentParameters[6]):
         platesPerCondition = int(len(experimentParameters[4])/2)
     else:
-        platesPerCondition = int(len(experimentParameters[4]))
-    timeSplit = int(numTimePoints/platesPerCondition)
-    emptyDf = np.zeros([numConditions,numTimePoints])
-    fullDataFrame = pd.DataFrame(emptyDf,index=multiIndexedObject,columns=timePointNames)
-    fullDataFrame.columns.name = 'Time'
-    levelValues = []
-    for timeSplitIndex in range(platesPerCondition):
+        if experimentParameters[8]:
+            numPlates = len(experimentParameters[4])
+            platesPerTimePoint = math.ceil(numTimePoints/plateLength)
+            platesPerCondition = int(int(numPlates/2)/platesPerTimePoint)
+        else:
+            platesPerCondition = int(len(experimentParameters[4]))
+    if not experimentParameters[6] and experimentParameters[8]:
+        emptyDf = np.zeros([numConditions,numTimePoints])
+        fullDataFrame = pd.DataFrame(emptyDf,index=multiIndexedObject,columns=timePointNames)
+        fullDataFrame.columns.name = 'Time'
+        levelValues = []
+        alltimepoints = fullDataFrame.columns
+        newtimepointlist = []
+        for alternate in range(platesPerTimePoint):
+            alternatingTimepoints = range(alternate,platesPerTimePoint*plateLength,platesPerTimePoint)
+            for alternatetimepoint in alternatingTimepoints:
+                newtimepointlist.append(alltimepoints[alternatetimepoint])
         for row in range(fullDataFrame.shape[0]):
             conditionLabel = fullDataFrame.iloc[row,:].name
-            for col in range(timeSplitIndex*timeSplit,(timeSplitIndex+1)*timeSplit):
-                timeLabel = fullDataFrame.iloc[:,col].name
+            for col in range(fullDataFrame.shape[1]):
+                timeLabel = newtimepointlist[col] 
                 levelValues.append(list(conditionLabel)+[timeLabel])
+    else:
+        timeSplit = int(numTimePoints/platesPerCondition)
+        emptyDf = np.zeros([numConditions,numTimePoints])
+        fullDataFrame = pd.DataFrame(emptyDf,index=multiIndexedObject,columns=timePointNames)
+        fullDataFrame.columns.name = 'Time'
+        levelValues = []
+        for timeSplitIndex in range(platesPerCondition):
+            for row in range(fullDataFrame.shape[0]):
+                conditionLabel = fullDataFrame.iloc[row,:].name
+                for col in range(timeSplitIndex*timeSplit,(timeSplitIndex+1)*timeSplit):
+                    timeLabel = fullDataFrame.iloc[:,col].name
+                    levelValues.append(list(conditionLabel)+[timeLabel])
     #fullDataFrame = returnModifiedDf(experimentNumber,fullDataFrame,'cell') 
     stackedDf = fullDataFrame.stack()
     levelNames = list(stackedDf.index.names)
-
     #Grabs plate names (A1,A2 etc.)
     plateNames = experimentParameters[4]
     os.chdir('semiProcessedData/singleCellData/')
@@ -84,18 +108,18 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
         for plateName in plateNames:
             print(plateName)
             os.chdir(plateName)
-            os.chdir('TCells')
+            os.chdir(cellType)
             allFiles = glob.glob(os.getcwd()+'/'+scalingType+'*'+fileExtension)
             #Create empty list, fill with names of each file in order of collection (eg sample 001 goes in index 0, sample 005 goes in index 5 etc)
             fileNums = []
             for fileName in allFiles:
                 if (fileName.find(fileExtension)>-1):
-                    i = int(fileName[fileName.rfind('_0')+1:fileName.rfind('_TCells.')]) - 1
+                    i = int(fileName[fileName.rfind('_0')+1:fileName.rfind('_'+cellType+'.')]) - 1
                     fileNums.append(i)
             firstFileList = [None]*(max(fileNums)+1)
             for fileName in allFiles:
                 if (fileName.find(fileExtension)>-1):
-                    i = int(fileName[fileName.rfind('_0')+1:fileName.rfind('_TCells.')]) - 1
+                    i = int(fileName[fileName.rfind('_0')+1:fileName.rfind('_'+cellType+'.')]) - 1
                     firstFileList[i] = fileName
             fileList = []
             for fname in firstFileList:
@@ -130,13 +154,21 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
                         fileName = fileList[fileIndex]
                         trueLevelValIndex = (numTimePoints*conditionNumber)+overallTimePoint
                         trueLevelVal = levelValues[trueLevelValIndex]
-                        fileDict[trueLevelVal] = fileName
+                        stringVals = []
+                        for val in trueLevelVal:
+                            stringVals.append(str(val))
+                        stringTrueLevelVal = '-'.join(stringVals)
+                        fileDict[stringTrueLevelVal] = fileName
                         conditionNumber+=1
                     overallTimePoint+=1
                 os.chdir('../..')
         if not experimentParameters[6]:
             for levelValue in levelValues:
-                fileName = fileDict[levelValue]
+                stringVals = []
+                for val in levelValue:
+                    stringVals.append(str(val))
+                stringLevelValue = '-'.join(stringVals)
+                fileName = fileDict[stringLevelValue]
                 fcsDf = pd.read_csv(fileName,header=0)
                 eventNumber = fcsDf.shape[0]
                 eventList = range(1,eventNumber+1)
@@ -148,9 +180,10 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
                 newMultiIndex = pd.MultiIndex.from_tuples(allLevelValues,names=newNames)
                 newDf = pd.DataFrame(fcsDf.values,index=newMultiIndex,columns=experimentalMarkerNames)
                 completeDataFrameList.append(newDf)
-        completeDf = pd.concat(completeDataFrameList)
-        #completeDf = returnModifiedDf(experimentNumber,completeDf,'sc')
+        completeDf = pd.concat(completeDataFrameList)    
         completeDf = reindexDataFrame(completeDf,fullDataFrame,True)
+        completeDf.columns.name = 'Markers'
+        print(completeDf)
         with open('../../semiProcessedData/initialSingleCellDf-'+scalingType+'-'+folderName+'.pkl','wb') as f:
             pickle.dump(completeDf,f)
     os.chdir('../..')

@@ -132,9 +132,12 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                         bulkprolifdf = scdp.createProliferationSingleCellDataFrame(folderName,secondPath,expNum,useModifiedDf)
                         idp.convertDataFramestoExcel(folderName,secondPath,'prolif',bulkprolifdf,useModifiedDf)
                     if(cellTypeArray[3]):
-                        #scdp.createInitialSingleCellDataFrame(folderName,expNum)
-                        if experimentType not in ['AntibodyTest']:
-                            scdp.createCompleteSingleCellDf(folderName)
+                        fileList = os.listdir('semiProcessedData')
+                        if (('initialSingleCellDf-channel-'+folderName+'.pkl' not in fileList) or ('initialSingleCellDf-channel-'+folderName+'.pkl' not in fileList)):
+                            scdp.createInitialSingleCellDataFrame(folderName,expNum)
+                        if 'singleCellDataFrame-proliferation-'+folderName+'.pkl' in fileList:
+                            if experimentType not in ['AntibodyTest']:
+                                scdp.createCompleteSingleCellDf(folderName)
                 
                 elif(scriptToRun == 4): #Preprocess data for neural network
                     print('Preprocessing data for: '+str(folderName))
@@ -178,11 +181,16 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                     dataType = 'prolif'
                     dfArray[dataType] = proliferationdf
                 if(cellTypeArray[3]):
-                    singlecelldf = pickle.load(open('semiProcessedData/singleCellDataFrame-complete-'+folderName+modifiedstring+'.pkl','rb'))
+                    fileList = os.listdir('semiProcessedData')
+                    if 'singleCellDataFrame-complete-'+folderName+modifiedstring+'.pkl' in fileList:
+                        singlecelldf = pickle.load(open('semiProcessedData/singleCellDataFrame-complete-'+folderName+modifiedstring+'.pkl','rb'))
+                    else:
+                        singlecelldf = pickle.load(open('semiProcessedData/initialSingleCellDf-channel-'+folderName+modifiedstring+'.pkl','rb'))
+                    print(singlecelldf)
                     dataType = 'singlecell'
                     dfArray[dataType] = singlecelldf
 
-                if(scriptToRun in [101,102,103,104,106,107]): #Facet plots (line,scatter,scatter w/line for expfits)
+                if(scriptToRun in [101,102,103,104,106,107,108]): #Facet plots (line,scatter,scatter w/line for expfits)
                     for dfKey in dfArray:
                         if scriptToRun == 101:
                             plotType = 'heatmap'
@@ -209,7 +217,7 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                         print('Creating '+subPlotType+'plots for: '+str(folderName))
                         plt.switch_backend('QT4Agg') #default on my system
                         fpl.facetPlottingGUI(dfArray[dfKey],plotType,dataType)
-                        subsettedDfList,subsettedDfListTitles,levelsToPlot,figureLevels,levelValuesPlottedIndividually = fpl.produceSubsettedDataFrames(folderName,secondPath,dfArray[dfKey],useModifiedDf)
+                        subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually = fpl.produceSubsettedDataFrames(folderName,secondPath,dfArray[dfKey],useModifiedDf)
                         fpl.plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually,useModifiedDf,dfArray[dfKey])
                 elif scriptToRun in [105]: #Single Cell Figures
                     if scriptToRun == 105:
