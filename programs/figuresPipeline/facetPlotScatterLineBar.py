@@ -14,9 +14,28 @@ buttonLength = 0.075/2
 buttonXStart = 0.5-(0.01+buttonWidth)
 buttonYStart = 0.01
 
+def scaleXandY2D(ax,plotOptions):
+    #X and Y Axis Scaling for 2D plots
+    for axis in plotOptions['axisScaling']:
+        k = len(ax.fig.get_axes())
+        if 'Y' in axis:
+            if plotOptions['axisScaling'][axis] == 'Logarithmic':
+                for i in range(k):
+                    ax.fig.get_axes()[i].set_yscale('log')
+            elif plotOptions['axisScaling'][axis] == 'Biexponential':
+                for i in range(k):
+                    ax.fig.get_axes()[0].set_yscale('symlog',linthreshx=plotOptions['linThreshold'][axis])
+        else:
+            if plotOptions['axisScaling'][axis] == 'Logarithmic':
+                for i in range(k):
+                    ax.fig.get_axes()[0].set_xscale('log')
+            elif plotOptions['axisScaling'][axis] == 'Biexponential':
+                for i in range(k):
+                    ax.fig.get_axes()[0].set_xscale('symlog',linthreshx=plotOptions['linThreshold'][axis])
+
 def scatterLineBarSpecific_GUIWindow(labelDict,plotType,dataType):
     #Ask scale to use for axes (both y and x if relplot; only y if categorical)
-    if plotType == 'categorical' or plotType == 'frequency':
+    if plotType == 'categorical' or plotType == '1d':
         axes = ['Y Axis']
     else:
         axes = ['X Axis','Y Axis']
@@ -51,7 +70,7 @@ def scatterLineBarSpecific_GUIWindow(labelDict,plotType,dataType):
             if dataType == 'cyt':
                 initial_name = 'Concentration (nM)'
             else:
-                if plotType == 'frequency':
+                if plotType == '1d':
                     initial_name = 'Count'
                 else:
                     initial_name = ' '
@@ -59,7 +78,8 @@ def scatterLineBarSpecific_GUIWindow(labelDict,plotType,dataType):
             if plotType == 'ordered':
                 radioValues = pickle.load(open('semiProcessedData/gui-radioVals.pkl','rb'))
                 initial_name = radioValues['X Axis Values']
-            elif plotType == 'frequency':
+            elif plotType == '1d':
+                #initial_name = radioValues['Y Axis Values']
                 initial_name = 'GFI'
             else:
                 radioValues = pickle.load(open('semiProcessedData/gui-radioVals.pkl','rb'))
@@ -95,7 +115,7 @@ def scatterLineBarSpecific_GUIWindow(labelDict,plotType,dataType):
     def submitAxisTitleX(text):
         axisTitleValues['X Axis'] = text
     def submitAxisTitleY(text):
-        axisTitleValues['Y Axis'] = text
+       axisTitleValues['Y Axis'] = text
     axis_title_text_boxes['X Axis'].on_submit(submitAxisTitleX)
     axis_title_text_boxes['Y Axis'].on_submit(submitAxisTitleY)
     

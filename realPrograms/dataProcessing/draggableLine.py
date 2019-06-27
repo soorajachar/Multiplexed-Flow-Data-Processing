@@ -3,19 +3,18 @@ import matplotlib.pyplot as plt
 import matplotlib.lines as lines
 
 class draggable_lines:
-    def __init__(self, ax, kind, XorY):
+    def __init__(self, ax, kind, XorY,XorYMin,XorYMax):
         self.ax = ax
         self.c = ax.get_figure().canvas
         self.o = kind
         self.XorY = XorY
 
         if kind == "h":
-            x = [-1, 1]
+            x = [XorYMin, XorYMax]
             y = [XorY, XorY]
-
         elif kind == "v":
             x = [XorY, XorY]
-            y = [-1, 1]
+            y = [XorYMax, XorYMin]
         self.line = lines.Line2D(x, y, picker=5,linestyle=':',color='k')
         self.ax.add_line(self.line)
         self.c.draw_idle()

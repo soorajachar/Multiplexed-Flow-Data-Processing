@@ -7,7 +7,9 @@ created on sat jul 21 13:12:56 2018
 """
 import numpy as np
 import pandas as pd
-import sys,pickle
+import sys,pickle,os
+
+idx = pd.IndexSlice
 
 #Removes a particular level (and all of its sublevels) from the dataframe
 def dropLevel(df,levelValueToDrop,levelOfLevelValueToDrop):
@@ -35,7 +37,10 @@ def averageNonEdgeOutliers(df,outlierIndices):
                 interpolationIncrement = (df.loc[cyt].iloc[outlierConditionIndex,outlierColumnIndexEnd]-interpolationStart)/((outlierColumnIndexEnd-outlierColumnIndexStart)+1)
                 for i,outlierTimePointIndex in zip(range(1,outlierColumnIndexEnd-outlierColumnIndexStart+1),range(outlierColumnIndexStart,outlierColumnIndexEnd)):
                     newVal = interpolationStart+(i*interpolationIncrement)
-                    df.loc[cyt].iloc[outlierConditionIndex,outlierTimePointIndex] = newVal
+                    tempdf = df.loc[cyt].values
+                    tempdf[outlierConditionIndex,outlierTimePointIndex] = newVal
+                    df.loc[cyt] = tempdf
+                    #df.loc[cyt].values[outlierConditionIndex,outlierTimePointIndex] = newVal
     return df
 
 #Only if first or last timepoint is missing; set equal to previous timepoint or next time point (last and first respectively)
@@ -45,9 +50,15 @@ def averageEdgeOutliers(df,outlierIndices):
         for outlierConditionIndex in range(outlierRowIndexStart,outlierRowIndexEnd):
             for cyt in pd.unique(df.index.get_level_values(0)):
                 if(outlierColumnIndexEnd == df.shape[1]):
-                    df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-1] = df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-2]
+                    tempdf = df.loc[cyt].values
+                    tempdf[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-1] = df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-2]
+                    df.loc[cyt] = tempdf
+                    #df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-1] = df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-2]
                 else:
-                    df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-1] = df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd]
+                    tempdf = df.loc[cyt].values
+                    tempdf[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-1] = df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd]
+                    df.loc[cyt] = tempdf
+                    #df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd-1] = df.loc[cyt].iloc[outlierRowIndexStart:outlierRowIndexEnd+1,outlierColumnIndexEnd]
     return df
 
 #Replace saturated cytokine measurements with diluted measurements
@@ -57,11 +68,9 @@ def replaceSaturatedCytokines(folderName,df,dilutedDf,dilutionFactor):
         dilutedDfNames = tuple(dilutedDf.iloc[row,:].name)
         upperConcLOD = LODParameters[dilutedDfNames[0]][3]
         dfRowToDesaturate = df.loc[dilutedDfNames,:]
-        print(df.loc[dilutedDfNames])
         for i in range(dfRowToDesaturate.shape[0]):
             if df.loc[dilutedDfNames].values[i] == upperConcLOD:
                 df.loc[dilutedDfNames].values[i] = dilutionFactor*dilutedDf.iloc[row,i]
-        print(df.loc[dilutedDfNames])
     return df
 
 #Perform various modifications of dataframe; specific to each experiment (outlier averaging, erroneous value dropping etc.)
@@ -101,7 +110,7 @@ def returnModifiedDf(experimentNumber,df,dataType):
         if dataType == 'cyt':
             wrongDataIndices = [[32,40,5,6],[40,48,20,21],[15,16,20,21]]
             df = averageNonEdgeOutliers(df,wrongDataIndices)
-            df = df.drop(['100'], axis=1)
+            df = df.iloc[:,:-1]
     elif(experimentNumber == 71):
         if dataType == 'sc':
             A2B2_Timepoints = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 13.0]
@@ -222,6 +231,11 @@ def returnModifiedDf(experimentNumber,df,dataType):
             #df = dropLevel(df,71.0,'Time')
         if dataType == 'sc':
             df = dropLevel(df,71.0,'Time')
+    elif experimentNumber == 88:
+        if dataType == 'cyt':
+            dilutedDf = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[0]
+            dilutionFactor = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[1]
+            df = replaceSaturatedCytokines(folderName,df,dilutedDf,dilutionFactor)
     #Mixed N4 10pM and Q4 1uM by accident. Last timepoint did not have enough cells
     elif(experimentNumber == 91):
         levelsToKeep = []
@@ -232,7 +246,11 @@ def returnModifiedDf(experimentNumber,df,dataType):
             else:
                 levelsToKeep.append(i)
         df = df.iloc[levelsToKeep,:-1]
-        if dataType == 'cell' or dataType == 'prolif':
+        if dataType == 'cyt':
+            dilutedDf = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[0]
+            dilutionFactor = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[1]
+            df = replaceSaturatedCytokines(folderName,df,dilutedDf,dilutionFactor)
+        elif dataType == 'cell' or dataType == 'prolif':
             levelsToKeep2 = []
             for i in range(df.shape[0]):
                 rowlevels = df.iloc[i,:].name
@@ -253,13 +271,36 @@ def returnModifiedDf(experimentNumber,df,dataType):
             df = df.iloc[levelsToKeep2,:]
     elif experimentNumber == 93:
         if dataType == 'cyt':
-            dilutedDf = pickle.load(open('semiProcessedData/correctedCytokineDataFrames-'+folderName+'-Concentration.pkl','rb'))[folderName]
-            df = replaceSaturatedCytokines(folderName,df,dilutedDf,10)
+            dilutedDf = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[0]
+            dilutionFactor = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[1]
+            df = replaceSaturatedCytokines(folderName,df,dilutedDf,dilutionFactor)
     #Last 2-3 timepoints dried out due to low humidity
     elif experimentNumber == 96:
+        if dataType == 'cyt':
+            dilutedDf = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[0]
+            dilutionFactor = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[1]
+            df = replaceSaturatedCytokines(folderName,df,dilutedDf,dilutionFactor)
         df = df.iloc[:,:-3]
+    #Incorrect compensation in WT N4 1uM
+    elif experimentNumber == 111:
+        if dataType == 'cell':
+            levelsToKeep = []
+            for i in range(df.shape[0]):
+                rowlevels = df.iloc[i,:].name
+                if((rowlevels[-3] == 'WT' and rowlevels[-2] == 'N4' and rowlevels[-1] == '1uM')):
+                    pass
+                else:
+                    levelsToKeep.append(i)
+            df = df.iloc[levelsToKeep,:]
+    elif experimentNumber == 117:
+        if dataType == 'cyt':
+            dilutedDf = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[0]
+            dilutionFactor = pickle.load(open('semiProcessedData/correctedCytokineDataFrameAndDilutionFactor-'+folderName+'.pkl','rb'))[1]
+            df = replaceSaturatedCytokines(folderName,df,dilutedDf,dilutionFactor)
+
     #Need to change original index order to real way of keep index order (with reset_index in single cell processing scripts)
     modifiedDf = df.copy()
     modifiedDf.columns.name = 'Time'
+    print('modified')
     print(modifiedDf)
     return modifiedDf

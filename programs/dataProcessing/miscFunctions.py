@@ -14,7 +14,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 listOfCytokines=['IFNg','IL-2','IL-4','IL-6','IL-10','IL-17A','TNFa']
-sampleIDOrder = True
+#sampleIDOrder = True
+sampleIDOrder = False 
 
 def Hill(x, Amplitude, EC50, hill,Background):
     return np.log10(Amplitude * np.power(x,hill)/(np.power(EC50,hill)+np.power(x,hill))+Background)
@@ -44,16 +45,44 @@ def r_squared(xdata,ydata,func,popt):
     r_squared = 1 - (ss_res / ss_tot)
     return r_squared
 
-#Sample_A2_A02_002.fcs,
-def cleanUpFlowjoCSV(fileArray,folderName,dataType):
-    dataType2 = dataType
-    if dataType == 'cytcorr':
-        dataType = 'cyt'
+def cleanUpFileList(fileArray):
     #Samples will be indexed based on well ID (A01, then A02 etc.)
     if not sampleIDOrder:
         orderWellID = {}
-        plateColumnList = list(range(1,13))
-        plateRowList = ['A','B','C','D','E','F','G','H']
+        index = 1
+        for plateRow in plateRowList:
+            for plateColumn in plateColumnList:
+                orderWellID[str(plateRow)+str(plateColumn)] = index
+                index+=1
+        sortedFileList = [None]*len(fileArray)
+        for name in fileArray:
+            wellID = name.split('_')[3]
+            sortedFileList[orderWellID[wellID]] = name
+    #Samples will be indexed based on order of acqusition (sample001 then sample002 etc.)
+    else:
+        sortedFileList = [None]*len(fileArray)
+        for name in fileArray:
+            sampleID = int(name.split('_')[5])
+            sortedFileList[sampleID-1] = name
+    
+    return sortedFileList
+
+#Sample_A2_A02_002.fcs,
+def cleanUpFlowjoCSV(fileArray,folderName,dataType):
+    if dataType == 'singlecell':
+        dataTypeForCSV = 'cell'
+    elif dataType == 'cytcorr':
+        dataTypeForCSV = 'cyt'
+    else:
+        dataTypeForCSV = dataType
+    sortedData = []
+    sortedFiles = []
+    #Samples will be indexed based on well ID (A01, then A02 etc.)
+    if not sampleIDOrder:
+        orderWellID = {}
+        #Supports 384 well (16 rows, 24 columns)
+        plateColumnList = list(range(1,25))
+        plateRowList = list(string.ascii_uppercase)[:16]
         index = 1
         for plateRow in plateRowList:
             for plateColumn in plateColumnList:
@@ -61,43 +90,68 @@ def cleanUpFlowjoCSV(fileArray,folderName,dataType):
                 index+=1
         orderWellID['Mean'] = len(orderWellID.keys())+1
         orderWellID['SD'] = len(orderWellID.keys())+2
-        sortedData = []
         for name in fileArray:
-            temp = pd.read_csv('semiProcessedData/'+str(name)+'_'+dataType+'.csv')
+            temp = pd.read_csv('semiProcessedData/'+str(name)+'_'+dataTypeForCSV+'.csv')
+            temp2 = [] 
             for i in range(0,temp.shape[0]):
+                fullfilename = 'semiProcessedData/singleCellData/'+name+'/'+temp.iloc[i,0][:temp.iloc[i,0].find('.')]
                 if '_' in temp.iloc[i,0]:
                     wellID = temp.iloc[i,0].split('_')[2]
                 else:
                     wellID = temp.iloc[i,0]
                 temp.iloc[i,0] = orderWellID[wellID]
+                temp2.append([str(temp.iloc[i,0]).zfill(3),fullfilename])
+            
+            temp2 = pd.DataFrame(np.matrix(temp2[:-2]),columns=['Unnamed: 0','fileName'])
             temp = temp.sort_values('Unnamed: 0')
+            temp2 = temp2.sort_values('Unnamed: 0')
             sortedData.append(temp[:-2])
+            sortedFiles.append(temp2)
     #Samples will be indexed based on order of acqusition (sample001 then sample002 etc.)
     else:
-        sortedData = []
         for name in fileArray:
-            temp = pd.read_csv('semiProcessedData/'+str(name)+'_'+dataType+'.csv')
+            temp = pd.read_csv('semiProcessedData/'+str(name)+'_'+dataTypeForCSV+'.csv')
+            temp2 = [] 
             for i in range(0,temp.shape[0]):
+                fullfilename = 'semiProcessedData/singleCellData/'+name+'/'+temp.iloc[i,0][:temp.iloc[i,0].find('.')]
                 temp.iloc[i,0] = temp.iloc[i,0][temp.iloc[i,0].find('.')-3:temp.iloc[i,0].find('.')]
+                temp2.append([temp.iloc[i,0],fullfilename])
+            temp2 = pd.DataFrame(np.matrix(temp2[:-2]),columns=['Unnamed: 0','fileName'])
             temp = temp.sort_values('Unnamed: 0')
+            temp2 = temp2.sort_values('Unnamed: 0')
             sortedData.append(temp[:-2])
-    if dataType2 == 'cytcorr':
-        dataType = 'cytcorr'
+            sortedFiles.append(temp2)
     if(dataType == 'cyt'):
         newMultiIndex = parseCytokineCSVHeaders(pd.read_csv('semiProcessedData/A1_'+dataType+'.csv').columns)
+        return sortedData,newMultiIndex
     elif(dataType == 'cell'):
         panelData = pd.read_csv('inputFiles/antibodyPanel-'+folderName+'.csv',)
         newMultiIndex = parseCellCSVHeaders(pd.read_csv('semiProcessedData/A1_'+dataType+'.csv').columns,panelData)
+        return sortedData,newMultiIndex
+    elif(dataType == 'singlecell'):
+        #Grabs a file from samples to read marker names off of
+        cellTypeList = []
+        for fileName in os.listdir('semiProcessedData/singleCellData/A1/'):
+            if 'DS' not in fileName:
+                cellTypeList.append(fileName)
+        newMultiIndex = produceSingleCellHeaders(cellTypeList)
+        return sortedFiles,newMultiIndex
     elif(dataType == 'cytcorr'):
         newMultiIndex = []
-    return sortedData,newMultiIndex
+        return sortedData,newMultiIndex
+
+def produceSingleCellHeaders(cellTypes):
+    newMultiIndexList = []
+    for cellType in cellTypes:
+        newMultiIndexList.append([cellType])
+    return newMultiIndexList
 
 def parseCytokineCSVHeaders(columns):
     #,Beads/IFNg | Geometric Mean (YG586-A),Beads/IL-2 | Geometric Mean (YG586-A),Beads/IL-4 | Geometric Mean (YG586-A),Beads/IL-6 | Geometric Mean (YG586-A),Beads/IL-10 | Geometric Mean (YG586-A),Beads/IL-17A | Geometric Mean (YG586-A),Beads/TNFa | Geometric Mean (YG586-A),
     newMultiIndexList = []
     for column in columns[1:-1]:
         populationNameVsStatisticSplit = column.split(' | ')
-        cytokine = populationNameVsStatisticSplit[0].split('/')[1]
+        cytokine = populationNameVsStatisticSplit[0].split('/')[-1]
         newMultiIndexList.append([cytokine])
     return newMultiIndexList
 
@@ -108,64 +162,140 @@ def parseCellCSVHeaders(columns,panelData):
         populationNameVsStatisticSplit = column.split(' | ')
         fullPopulationName = populationNameVsStatisticSplit[0]
         #Statistics can be performed on the whole cell population, in which case the cellType is allEvents
+        #GFI and CV need to be specified in terms of a laser channel; count and percent positive do not
         if '/' in fullPopulationName:
             populationDivisionIndices = [i for i,c in enumerate(fullPopulationName) if c=='/']
-            #Positive cell percentage statistics do not have channel names, so treat differently
-            if('Freq.' in populationNameVsStatisticSplit[1]):
-                cellType = fullPopulationName[populationDivisionIndices[-2]+1:populationDivisionIndices[-1]]
-                marker = fullPopulationName[populationDivisionIndices[-1]+1:len(fullPopulationName)-1]
-                statistic = '% Positive'
-            elif('Count' in populationNameVsStatisticSplit[1]):
-                cellType = fullPopulationName[populationDivisionIndices[-1]+1:]
-                #cellType = fullPopulationName[populationDivisionIndices[-2]+1:populationDivisionIndices[-1]]
-                marker = 'NotApplicable'
-                statistic = populationNameVsStatisticSplit[1]
-            else:
-                #GFI of positive populations vs overall TCell GFI
-                if('+' in populationNameVsStatisticSplit[0]):
-                    cellType = fullPopulationName[populationDivisionIndices[-2]+1:populationDivisionIndices[-1]]
-                    marker = fullPopulationName[populationDivisionIndices[-1]+1:len(fullPopulationName)-1]
-                    statistic = 'Positive GFI'
-                else:
-                    cellType = fullPopulationName[populationDivisionIndices[-1]+1:]
+            #GFI or CV
+            if 'Geometric Mean' in populationNameVsStatisticSplit[1] or 'CV' in populationNameVsStatisticSplit[1]:
+                cellType = fullPopulationName
+                #cellType = fullPopulationName[populationDivisionIndices[-1]+1:]
+                if 'Comp-' in populationNameVsStatisticSplit[1]:
                     statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (Comp-')
-                    if('Geometric' in statisticVsChannelSplit[0]):
-                        statistic = 'GFI'
+                else:
+                    statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (')
+                statistic = statisticVsChannelSplit[0]
+                if 'Geometric' in statistic:
+                    statisticName = 'GFI'
+                else:
+                    statisticName = 'CV'
+                
+                #Can have IRF4+,TCells,CD45RB+CD25-; first case: cellType = first case:cellType=previousPop,marker=currentPop[:-1],stat=Positive/Negative GFI; 
+                #second case: cellType = currentPop,marker=NotApplicable,statistic=GFI; third case: cellType = currentPop,marker=NotApplicable,statistic=GFI
+                numPositive = fullPopulationName[populationDivisionIndices[-1]+1:].count('+')
+                numNegative = fullPopulationName[populationDivisionIndices[-1]+1:].count('-')
+                channel = statisticVsChannelSplit[1][:-1]
+                panelIndex = list(panelData['FCSDetectorName']).index(channel)
+                marker = panelData['Marker'][panelIndex]
+                 
+                #if numPositive+numNegative == 0, just use the last gate as the population name:
+                if numPositive+numNegative == 0:
+                    cellType = fullPopulationName[populationDivisionIndices[-1]+1:]
+                    statistic = statisticName
+                #If more than 1 +/- signs, include full population gating hiearchy as cell population name
+                elif numPositive+numNegative > 1:
+                    cellType = fullPopulationName
+                    statistic = statisticName
+                #If just a single + or - sign, extract marker name out of last gate
+                else:
+                    positivePop = fullPopulationName[populationDivisionIndices[-1]+1:-1]
+                    if positivePop == marker:
+                        cellType = fullPopulationName[:populationDivisionIndices[-1]]
+                        print([cellType,marker,statistic])
                     else:
-                        statistic = statisticVsChannelSplit[0]
-                    channel = statisticVsChannelSplit[1][:-1]
-                    panelIndex = list(panelData['FCSDetectorName']).index(channel)
-                    marker = panelData['Marker'][panelIndex]
+                        cellType = fullPopulationName
+                    if numNegative == 0:
+                        statistic = 'Positive '+statisticName
+                    else:
+                        statistic = 'Negative '+statisticName
+            #% of parent and count
+            else:
+                numPositive = fullPopulationName[populationDivisionIndices[-1]+1:].count('+')
+                numNegative = fullPopulationName[populationDivisionIndices[-1]+1:].count('-')
+                if 'Freq' in populationNameVsStatisticSplit[1]:
+                    if numPositive+numNegative == 0:
+                        marker = 'NotApplicable'
+                        statistic ='%'
+                        cellType = fullPopulationName[populationDivisionIndices[-1]+1:]
+                    elif numPositive+numNegative > 1:
+                        marker = 'NotApplicable'
+                        statistic = '%'
+                        cellType = fullPopulationName
+                    else:
+                        if numNegative == 0:
+                            statistic = '% Positive'
+                        else:
+                            statistic = '% Negative'
+                        marker = fullPopulationName[populationDivisionIndices[-1]+1:len(fullPopulationName)-1]
+                        positivePop = fullPopulationName[populationDivisionIndices[-1]+1:-1]
+                        if positivePop == marker:
+                            cellType = fullPopulationName[:populationDivisionIndices[-1]]
+                            print([cellType,marker,statistic])
+                        else:
+                            cellType = fullPopulationName
+                else:
+                    marker = 'NotApplicable'
+                    statistic = 'Count'
+                    if numPositive+numNegative == 0:
+                        cellType = fullPopulationName[populationDivisionIndices[-1]+1:] 
+                    else:
+                        cellType = fullPopulationName
         else:
             cellType = 'allEvents'
             #Statistics can be performed on the whole cell population, in which case the cellType is allEvents
             #DAPI+ | Freq. of Parent (%)
             #Positive cell percentage statistics do not have channel names, so treat differently
-            if('Freq.' in populationNameVsStatisticSplit[1]):
-                marker = fullPopulationName[:len(fullPopulationName)-1]
-                statistic = '% Positive'
-            elif('Count' in populationNameVsStatisticSplit[1]):
-                marker = 'NotApplicable'
-                statistic = populationNameVsStatisticSplit[1]
-            else:
-                #GFI of positive populations vs overall TCell GFI
-                if('+' in populationNameVsStatisticSplit[0]):
-                    marker = fullPopulationName[:len(fullPopulationName)-1]
-                    statistic = 'Positive GFI'
+            #GFI or CV
+            if 'Geometric Mean' in populationNameVsStatisticSplit[1] or 'CV' in populationNameVsStatisticSplit[1]:
+                if 'Comp-' in populationNameVsStatisticSplit[1]:
+                    statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (Comp-')
                 else:
-                    if 'Comp-' in populationNameVsStatisticSplit[1]:
-                        statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (Comp-')
-                    else:
-                        statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (')
-                    if('Geometric' in statisticVsChannelSplit[0]):
-                        statistic = 'GFI'
-                    else:
-                        statistic = statisticVsChannelSplit[0]
-                    channel = statisticVsChannelSplit[1][:-1]
-                    panelIndex = list(panelData['FCSDetectorName']).index(channel)
-                    marker = panelData['Marker'][panelIndex]
-
+                    statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (')
+                statistic = statisticVsChannelSplit[0]
+                if 'Geometric' in statistic:
+                    statistic = 'GFI'
+                channel = statisticVsChannelSplit[1][:-1]
+                panelIndex = list(panelData['FCSDetectorName']).index(channel)
+                marker = panelData['Marker'][panelIndex]
+            #% of parent and count
+            else:
+                marker = 'NotApplicable'
+                if 'Freq' in populationNameVsStatisticSplit[1]:
+                    statistic = '% Positive'
+                else:
+                    statistic = 'Count'
         newMultiIndexList.append([cellType,marker,statistic])
+    commonBranchesIndices = []
+    commonBranches = []
+    for multiIndexList in newMultiIndexList:
+        fullPopulationName = multiIndexList[0]
+        populationDivisionIndices = [i for i,c in enumerate(fullPopulationName) if c=='/']
+        commonBranches.append(fullPopulationName.split('/'))
+        commonBranchesIndices.append(populationDivisionIndices)
+    commonIndex = 0
+    masterBranchList = []
+    for branchlist in commonBranches:
+        for branch in branchlist:
+            masterBranchList.append(branch)
+    uniqueBranches = list(pd.unique(masterBranchList))
+    commonToAllStatistics = []
+    for uniqueBranch in uniqueBranches:
+        isCommonToAllStatistics = True
+        for branchlist in commonBranches:
+            if uniqueBranch not in branchlist:
+                isCommonToAllStatistics = False
+        if isCommonToAllStatistics:
+            commonToAllStatistics.append(uniqueBranch)
+    uncommonStatisticsList = []
+    for commonBranch in commonBranches:
+        uncommonStatistics = []
+        for branch in commonBranch:
+            if branch not in commonToAllStatistics:
+                uncommonStatistics.append(branch)
+        uncommonStatisticsList.append('/'.join(uncommonStatistics))
+    for uncommonStatistic,i in zip(uncommonStatisticsList,range(len(uncommonStatisticsList))):
+        newMultiIndexList[i] = [uncommonStatistic]+newMultiIndexList[i][1:]
+    #for temp in newMultiIndexList:
+    #    print(temp)
     return newMultiIndexList
 
 def returnOrderedFiles(allFiles,extension):
@@ -251,7 +381,7 @@ def returnNumericTimePoints(dfc):
     return timePoints
 
 #['1uM' '1nM' '100pM' '10pM' '10nM' '100nM']
-unitPrefixDictionary = {'fM':1e-15,'pM':1e-12,'nM':1e-9,'uM':1e-6,'mM':1e-3,'M':1e0,'':0}
+unitPrefixDictionary = {'fM':1e-15,'pM':1e-12,'nM':1e-9,'uM':1e-6,'mM':1e-3,'M':1e0,'':0,'K':1000}
 def sortSINumerically(listSI,sort,descending):
     numericList = []
     for unitString in listSI:
@@ -266,6 +396,8 @@ def sortSINumerically(listSI,sort,descending):
     sortedListSI = []
     for elem in numericIndices:
         sortedListSI.append(listSI[elem])
+    print(sortedListSI)
+    print(numericList)
     return sortedListSI,numericList
 
 #Used to interpret experimentnumbers
@@ -335,3 +467,28 @@ def reindexDataFrame(dfToReindex,indexdf,singlecellToNonSinglecell):
         reindexedMultiIndex = pd.MultiIndex.from_tuples(reindexedLevelNames,names=dfToReindex.index.names)
         reindexedDf = pd.DataFrame(reindexedDfMatrix,index=reindexedMultiIndex,columns=dfToReindex.columns)
     return reindexedDf
+
+def find_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx],idx
+
+def returnGates(logicleData,rawData,generationZeroBoundary):
+    parentGenerationPresent = True
+    maxGenerationNumber = 6
+    newtemplin = logicleData.values.ravel(order='F')
+    newtempraw = rawData.values.ravel(order='F')
+    generationGatesLinear = [newtemplin[find_nearest(newtempraw,generationZeroBoundary)[1]]]
+    #Get CTV GFI means for each generation by dividing initial GFI (raw) by 2 for each division
+    generationZeroGFI = 0.75*generationZeroBoundary
+    generationMeansLog = [generationZeroGFI]
+    for generation in range(maxGenerationNumber):
+        generationMeansLog.append(generationMeansLog[generation]/2)
+    #Create initial gates at values between each set of division means. Undivided generation and final generation have boundaries at right, left edges of plot respectively
+    generationGatesLog = []
+    for generation in range(maxGenerationNumber-1):
+        generationGatesLog.append((generationMeansLog[generation]+generationMeansLog[generation+1])*0.5)
+    for gateval in generationGatesLog:
+        generationGatesLinear.append(newtemplin[find_nearest(newtempraw,gateval)[1]])
+    return generationGatesLinear
+

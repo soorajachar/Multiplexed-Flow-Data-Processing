@@ -25,6 +25,11 @@ MWofCytokines=[17200,17200,14000,21900,18900,15500,17500] #g/mol, correct one
 
 cytokineHeaderNames = ['Cytokine']
 cellHeaderNames = ['CellType','Marker','Statistic']
+singleCellHeaderNames = ['CellType']
+
+reshapePlateVan = False 
+
+secondPathBool = True
 
 #Create Calibration Curves, obtain LODs (limits of detection) of experiment
 def calibrateExperiment(folderName,secondPath,concUnit,concUnitPrefix,numberOfCalibrationSamples,initialStandardVolume):
@@ -117,28 +122,43 @@ def reshapePlate(plateData,numConditions,numTimePoints,columnsPerTimePoint,conti
     #Condition numbers are always conserved across timepoints (not necessarily across plates), so the num samples on a plate divided by the num conditions on that plate will give the number of timepoints on the plate
     numTimePoints = int(individualSamples/numConditions)
     newNumConditions = numConditions
-    if not contiguous:
-        #Blank conditions in a non-contiguous plate will always be the number of conditions needed to make numConditions a multiple of 8 (plate WIdth)
-        numMissingConditions = numConditions % plateWidth
-        plateDataCopy = [1]
-        #Create ntimepoints number of dummyvals, add this list of dummy vals to the original values; e.g. a 14x6 single plate (with 2 blank conditions) gets a 2x6 array of dummyvals added to it
-        dummyVals = [dummyVal]*numTimePoints
-        for j in range(numMissingConditions):
-            plateDataCopy+=list(plateData[j*numTimePoints:(j+1)*numTimePoints])+dummyVals
-        if(len(plateDataCopy) > 1):
-            plateData = np.array(plateDataCopy[1:])
-        #With dummy vals included; numConditions is updated to include the dummy conditions
-        newNumConditions += numMissingConditions
+    if not contiguous or (individualSamples < plateWidth*plateLength and reshapePlateVan):
+        if not contiguous:
+            #Blank conditions in a non-contiguous plate will always be the number of conditions needed to make numConditions a multiple of 8 (plate WIdth)
+            numMissingConditions = numConditions % plateWidth
+            plateDataCopy = [1]
+            #Create ntimepoints number of dummyvals, add this list of dummy vals to the original values; e.g. a 14x6 single plate (with 2 blank conditions) gets a 2x6 array of dummyvals added to it
+            dummyVals = [dummyVal]*numTimePoints
+            for j in range(numMissingConditions):
+                plateDataCopy+=list(plateData[j*numTimePoints:(j+1)*numTimePoints])+dummyVals
+            if(len(plateDataCopy) > 1):
+                plateData = np.array(plateDataCopy[1:])
+            #With dummy vals included; numConditions is updated to include the dummy conditions
+            newNumConditions += numMissingConditions
+        #Blanks at very end of experiment; not conserved between timepoints
+        else:
+            numMissingConditions = (plateWidth*plateLength)%individualSamples
+            plateDataList = list(plateData)
+            for j in range(numMissingConditions):
+                plateDataList.append(dummyVal)
+            plateData = pd.Series(plateDataList)
+    if reshapePlateVan:
+        #Reshape the list of data (could be including dummyvals) into 
+        plateLayout = np.reshape(list(plateData),(plateWidth,plateLength))
+        columnsPerTimePoint = 1
+    else:
+        plateLayout = np.reshape(list(plateData),(int(newNumConditions/columnsPerTimePoint),numTimePoints*columnsPerTimePoint))
     #Reshape the list of data (could be including dummyvals) into 
-    plateLayout = np.reshape(list(plateData),(int(newNumConditions/columnsPerTimePoint),numTimePoints*columnsPerTimePoint))
     flattenedPlateLayout = list(plateLayout.flatten('F'))
-    if dummyVal in flattenedPlateLayout:
+    if dummyVal in flattenedPlateLayout or str(dummyVal) in flattenedPlateLayout:
         for val in flattenedPlateLayout.copy():
-            if val == dummyVal:
+            if val == dummyVal or val == str(dummyVal):
                 flattenedPlateLayout.remove(val)
     miniPlate = np.reshape(np.array(flattenedPlateLayout),(numConditions,numTimePoints),order='F')
     miniPlateList = np.vsplit(miniPlate,columnsPerTimePoint)
+    
     return miniPlateList
+
 
 def createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints,dataTypeLevelList,dataTypeLevelNames,paired,contiguous,replicateWise,alternatingPlatewise):
     
@@ -161,7 +181,7 @@ def createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints
         if paired:
             numConditionsB = int(totalSamplesB/numTimePoints)
         columnsPerTimePoint = math.ceil(numConditionsA/plateWidth)
-
+        
         #Iterates through each plate 2 at a time (robot processes 2 plates at a time: A/B plates; each A/B set combined has all the conditions for a given experiment)
         for levelIndex in range(len(dataTypeLevelList)):
             masterMiniPlateAList = []
@@ -170,11 +190,22 @@ def createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints
                 if paired:
                     plateIndexA = i*2
                     plateIndexB = plateIndexA + 1
-                    masterMiniPlateAList.append(reshapePlate(allRawData[plateIndexA].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
-                    masterMiniPlateBList.append(reshapePlate(allRawData[plateIndexB].iloc[:,levelIndex+1],numConditionsB,numTimePoints,columnsPerTimePoint,contiguous))
+                    #singlecell
+                    if allRawData[0].shape[1] == 2:
+                        masterMiniPlateAList.append(reshapePlate(allRawData[plateIndexA].iloc[:,1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
+                        masterMiniPlateBList.append(reshapePlate(allRawData[plateIndexB].iloc[:,1],numConditionsB,numTimePoints,columnsPerTimePoint,contiguous))
+                    #everything else
+                    else:
+                        masterMiniPlateAList.append(reshapePlate(allRawData[plateIndexA].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
+                        masterMiniPlateBList.append(reshapePlate(allRawData[plateIndexB].iloc[:,levelIndex+1],numConditionsB,numTimePoints,columnsPerTimePoint,contiguous))
                 else:
                     plateIndex = i
-                    masterMiniPlateAList.append(reshapePlate(allRawData[plateIndex].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
+                    #singlecell
+                    if allRawData[0].shape[1] == 2:
+                        masterMiniPlateAList.append(reshapePlate(allRawData[plateIndex].iloc[:,1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
+                    #everything else
+                    else:
+                        masterMiniPlateAList.append(reshapePlate(allRawData[plateIndex].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
 
             finalPlateMatrix = []
             for i in range(len(masterMiniPlateAList)):
@@ -328,6 +359,9 @@ def createFullDataFrames(folderName,secondPath,experimentNumber,concUnit,concUni
         modifiedConcentrationDf = returnModifiedDf(experimentNumber,finalDataFrameConcentration,dataType)
         with open('semiProcessedData/cytokineConcentrationPickleFile-'+folderName+'-modified.pkl', "wb") as f:
             pickle.dump(modifiedConcentrationDf, f)
+        if secondPathBool:
+            with open(secondPath+'/cytokineConcentrationPickleFile-'+folderName+'-modified.pkl', "wb") as f:
+                pickle.dump(modifiedConcentrationDf, f)
         finalDataFrame = modifiedConcentrationDf
     if dataType == 'cell':
         allRawData,newLevelList = cleanUpFlowjoCSV(plateNames,folderName,dataType)
@@ -339,15 +373,21 @@ def createFullDataFrames(folderName,secondPath,experimentNumber,concUnit,concUni
         with open('semiProcessedData/cellStatisticPickleFile-'+folderName+'-modified.pkl', "wb") as f:
             pickle.dump(modifiedDataFrame, f)
         finalDataFrame = modifiedDataFrame
+    if dataType == 'singlecell':
+        allRawData,newLevelList = cleanUpFlowjoCSV(plateNames,folderName,dataType)
+        finalDataFrame = createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints,newLevelList,singleCellHeaderNames,paired,contiguous,replicateWise,alternatingPlatewise)
     else:
         pass
 
     return finalDataFrame
 
 def convertDataFramestoExcel(folderName,secondPath,dataType,df,useModifiedDf):
-    writer = pd.ExcelWriter('semiProcessedData/excelFile-'+folderName+'-'+dataType+'.xlsx')
+    modifiedString  = ''
+    if useModifiedDf:
+        modifiedString = '-modified' 
+    writer = pd.ExcelWriter('semiProcessedData/excelFile-'+folderName+'-'+dataType+modifiedString+'.xlsx')
     if dataType == 'cyt':
-        dfg = pickle.load(open('semiProcessedData/cytokineGFIPickleFile-'+folderName+'-modified.pkl','rb'))
+        dfg = pickle.load(open('semiProcessedData/cytokineGFIPickleFile-'+folderName+'.pkl','rb'))
         dfc = pickle.load(open('semiProcessedData/cytokineConcentrationPickleFile-'+folderName+'-modified.pkl','rb'))
         dfg.to_excel(writer,'GFI')
         dfc.to_excel(writer,'Concentration')

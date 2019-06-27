@@ -11,6 +11,7 @@ def createHistograms(logicleDf,fileName):
     logicleDf.columns.name = 'Markers'
     #Remove FSC and SSC populations and convert dataframe into single column
     histogramDf = logicleDf.iloc[:,2:]
+    """
     markersToPlot = ['H-2Kb','PD-L1']
     #[46, 44, 41, 38, 34, 30, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 12, 10, 8, 6, 4]
     timePointsToPlot = list(pd.unique(histogramDf.index.get_level_values('Time')))[::4]
@@ -30,8 +31,10 @@ def createHistograms(logicleDf,fileName):
     """
     markerSpecificList = []
     #Select only the events in the channel the single stain is testing
+    print(histogramDf)
+    histogramDf = histogramDf.xs(['Single Cells'],level=['CellType'])
     for marker in pd.unique(histogramDf.index.get_level_values('Antibody')):
-        markerSpecificEvents = histogramDf.loc[idx[marker,:,:,:,marker]]
+        markerSpecificEvents = histogramDf.loc[idx[marker,:,:,:],marker]
         markerSpecificList.append(markerSpecificEvents)
 
     #Concatenate dataframes containing only eents in the channel tested to a single large dataframe with column name GFI
@@ -50,4 +53,3 @@ def createHistograms(logicleDf,fileName):
     #Save figure
     plt.savefig('fullyProcessedFigures/antibodyTitration-'+fileName+'.png')
     plt.close()
-    """

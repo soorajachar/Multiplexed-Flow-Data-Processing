@@ -12,11 +12,7 @@ import numpy as np
 import os,sys
 import math
 import json
-import subprocess
-
-modelNames = ['ae-5-3-5-raw','ae-5-3-5-partitioned','ae-5-3-5-raw-normPerObservable','ae-5-3-5-partitioned-normPerObservable'\
-        ,'ae-7-3-7-tanh-raw','ae-7-3-7-tanh-partitioned','ae-7-3-7-tanh-raw-normPerObservable','ae-7-3-7-tanh-partitioned-normPerObservable',\
-        'ae-11-3-11-parameterized','ae-16-3-16-parameterized']
+import subprocess,string
 
 #Make experiment folder and subfolders
 def createExperimentFolders(folderName):
@@ -58,18 +54,6 @@ def createParameters(folderName,numConditions,numTimePoints,showOldHeatMap):
     plateLength = 12
     plateWidth = 8
     
-    """
-    #Check to see if old timeInfo file exists; if so use that to construct timepoint list
-    timeInfoPath = Path('inputFiles/timeInfo-'+folderName+'.txt')
-    if(timeInfoPath.is_file()):
-        with open('inputFiles/timeInfo-'+folderName+'.txt','r') as f:
-            timeArray = f.read().splitlines() 
-            totalTimeHours = timeArray[-1]
-        #When making multiIndex, open previous heatmaps if they exist to get a quick look at what conditions the experiment had
-        if(showOldHeatMap):
-            subprocess.run(["open","fullyProcessedFigures/cbaheatmaps-"+folderName+"-tight-nM.png"]) 
-    """
-
     numPlates = int(input('Enter the total number of plates used in the experiment: '))
     paired = str(input('Was this experiment performed with A/B plates (y/n)? '))
     if numConditions % plateWidth == 0:
@@ -184,7 +168,7 @@ def createParameters(folderName,numConditions,numTimePoints,showOldHeatMap):
             platesPerTimePoint = math.ceil(numTimePoints/plateLength)
             upperCase = string.ascii_uppercase
             for i in range(platesPerCondition):
-                for j in range(platesPerTimepoint):
+                for j in range(platesPerTimePoint):
                     plateNameArray.append(upperCase[i]+str(j+1))
         else:
             for i in range(0,numPlates):

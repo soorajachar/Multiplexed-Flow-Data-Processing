@@ -10,7 +10,7 @@ import processProliferationData as proliferationProcesser
 from modifyDataFrames import returnModifiedDf
 from miscFunctions import reindexDataFrame
 
-def createInitialSingleCellDataFrame(folderName,experimentNumber):
+def createInitialSingleCellDataFrame(folderName,experimentNumber,fileNameDataFrame):
     with open('inputFiles/experimentParameters-'+folderName+'.json') as f:
         experimentParameters = json.load(f)
     numConditions = experimentParameters[0][0]
@@ -28,7 +28,9 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
         timePointNames.append(float(timepoints[i]))
     
     #Grabs a file from samples to read marker names off of
-    cellType = os.listdir('semiProcessedData/singleCellData/A1/')[0]
+    for fileName in os.listdir('semiProcessedData/singleCellData/A1/'):
+        if 'DS' not in fileName:
+            cellType = fileName
     tempFilePath = 'semiProcessedData/singleCellData/A1/'+cellType+'/' 
     fileExtension = '.csv'
     print(os.getcwd())
@@ -36,7 +38,7 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
     experimentalChannelDf = pd.read_csv(tempFileName, header=0)
     experimentalChannelNames = experimentalChannelDf.columns.tolist()
     experimentalMarkerNames = []
-    #Creates column heasings for all measured parameters
+    #Creates column heasdings for all measured parameters
     for i in range(len(experimentalChannelNames)):
         if 'FSC-A' in experimentalChannelNames[i]:
             experimentalMarkerNames.append('Size')
@@ -44,7 +46,7 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
             experimentalMarkerNames.append('Granularity')
         elif 'CTV' in experimentalChannelNames[i]:
             experimentalMarkerNames.append('TCell_Gate')
-        elif 'CTFR' in experimentalChannelNames[i]:
+        elif 'CTFR' in experimentalChannelNames[i] or 'FarRed Cell Trace' in experimentalChannelNames[i]:
             experimentalMarkerNames.append('APC_Gate')
         else:
             #"Comp-APC-A :: CTFR"
@@ -52,148 +54,48 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber):
                 experimentalMarkerNames.append(experimentalChannelNames[i].split(' :: ')[1])
             else:
                 experimentalMarkerNames.append(experimentalChannelNames[i])
-    plateLength = 12
-    plateWidth = 8
-    #If paired
-    if(experimentParameters[6]):
-        platesPerCondition = int(len(experimentParameters[4])/2)
-    else:
-        if experimentParameters[8]:
-            numPlates = len(experimentParameters[4])
-            platesPerTimePoint = math.ceil(numTimePoints/plateLength)
-            platesPerCondition = int(int(numPlates/2)/platesPerTimePoint)
-        else:
-            platesPerCondition = int(len(experimentParameters[4]))
-    if not experimentParameters[6] and experimentParameters[8]:
-        emptyDf = np.zeros([numConditions,numTimePoints])
-        fullDataFrame = pd.DataFrame(emptyDf,index=multiIndexedObject,columns=timePointNames)
-        fullDataFrame.columns.name = 'Time'
-        levelValues = []
-        alltimepoints = fullDataFrame.columns
-        newtimepointlist = []
-        for alternate in range(platesPerTimePoint):
-            alternatingTimepoints = range(alternate,platesPerTimePoint*plateLength,platesPerTimePoint)
-            for alternatetimepoint in alternatingTimepoints:
-                newtimepointlist.append(alltimepoints[alternatetimepoint])
-        for row in range(fullDataFrame.shape[0]):
-            conditionLabel = fullDataFrame.iloc[row,:].name
-            for col in range(fullDataFrame.shape[1]):
-                timeLabel = newtimepointlist[col] 
-                levelValues.append(list(conditionLabel)+[timeLabel])
-    else:
-        timeSplit = int(numTimePoints/platesPerCondition)
-        emptyDf = np.zeros([numConditions,numTimePoints])
-        fullDataFrame = pd.DataFrame(emptyDf,index=multiIndexedObject,columns=timePointNames)
-        fullDataFrame.columns.name = 'Time'
-        levelValues = []
-        for timeSplitIndex in range(platesPerCondition):
-            for row in range(fullDataFrame.shape[0]):
-                conditionLabel = fullDataFrame.iloc[row,:].name
-                for col in range(timeSplitIndex*timeSplit,(timeSplitIndex+1)*timeSplit):
-                    timeLabel = fullDataFrame.iloc[:,col].name
-                    levelValues.append(list(conditionLabel)+[timeLabel])
-    #fullDataFrame = returnModifiedDf(experimentNumber,fullDataFrame,'cell') 
-    stackedDf = fullDataFrame.stack()
-    levelNames = list(stackedDf.index.names)
-    #Grabs plate names (A1,A2 etc.)
-    plateNames = experimentParameters[4]
-    os.chdir('semiProcessedData/singleCellData/')
-    print(plateNames)
+    stackedFileFrame = fileNameDataFrame.stack()
+    levelNames = list(stackedFileFrame.index.names)
+    singleCellLevelNames = levelNames+['Event']
     for scalingType in ['channel','scale']:
+        fullFileFrameTemp = stackedFileFrame.copy().to_frame('Temp')
         completeDataFrameList = []
-        index2=0
-        overallTimePoint=0
-        print(scalingType)
-        fileDict = {}
-        for plateName in plateNames:
-            print(plateName)
-            os.chdir(plateName)
-            os.chdir(cellType)
-            allFiles = glob.glob(os.getcwd()+'/'+scalingType+'*'+fileExtension)
-            #Create empty list, fill with names of each file in order of collection (eg sample 001 goes in index 0, sample 005 goes in index 5 etc)
-            fileNums = []
-            for fileName in allFiles:
-                if (fileName.find(fileExtension)>-1):
-                    i = int(fileName[fileName.rfind('_0')+1:fileName.rfind('_'+cellType+'.')]) - 1
-                    fileNums.append(i)
-            firstFileList = [None]*(max(fileNums)+1)
-            for fileName in allFiles:
-                if (fileName.find(fileExtension)>-1):
-                    i = int(fileName[fileName.rfind('_0')+1:fileName.rfind('_'+cellType+'.')]) - 1
-                    firstFileList[i] = fileName
-            fileList = []
-            for fname in firstFileList:
-                if(fname != None):
-                    fileList.append(fname)
-            bigList = []
-            if experimentParameters[6]:
-                for fileName,index in zip(fileList,range(len(fileList))):
-                    fcsDf = pd.read_csv(fileName,header=0)
-                    eventNumber = fcsDf.shape[0]
-                    eventList = range(1,eventNumber+1)
-                    allLevelValues = []
-                    for event in eventList:
-                        temp = list(levelValues[index2+index])
-                        temp.append(event)
-                        allLevelValues.append(temp)
-                    newNames = levelNames.copy()
-                    newNames.append('Event')
-                    newMultiIndex = pd.MultiIndex.from_tuples(allLevelValues,names=newNames)
-                    newDf = pd.DataFrame(fcsDf.values,index=newMultiIndex,columns=experimentalMarkerNames)
-                    bigList.append(newDf)
-                plateDf = pd.concat(bigList)
-                completeDataFrameList.append(plateDf)
-                os.chdir('../..')
-                index2+=len(fileList)
-            else:
-                numTimePointsPerPlate = int(numTimePoints/len(plateNames))
-                fileIndices = np.reshape(np.reshape(np.arange(96),(8,12)).flatten('F'),(numConditions,numTimePointsPerPlate),order='F')
-                for plateTimePoint in range(numTimePointsPerPlate):
-                    conditionNumber = 0
-                    for fileIndex in fileIndices[:,plateTimePoint]:
-                        fileName = fileList[fileIndex]
-                        trueLevelValIndex = (numTimePoints*conditionNumber)+overallTimePoint
-                        trueLevelVal = levelValues[trueLevelValIndex]
-                        stringVals = []
-                        for val in trueLevelVal:
-                            stringVals.append(str(val))
-                        stringTrueLevelVal = '-'.join(stringVals)
-                        fileDict[stringTrueLevelVal] = fileName
-                        conditionNumber+=1
-                    overallTimePoint+=1
-                os.chdir('../..')
-        if not experimentParameters[6]:
-            for levelValue in levelValues:
-                stringVals = []
-                for val in levelValue:
-                    stringVals.append(str(val))
-                stringLevelValue = '-'.join(stringVals)
-                fileName = fileDict[stringLevelValue]
-                fcsDf = pd.read_csv(fileName,header=0)
-                eventNumber = fcsDf.shape[0]
-                eventList = range(1,eventNumber+1)
-                allLevelValues = []
-                for event in eventList:
-                    allLevelValues.append(list(levelValue)+[event])
-                newNames = levelNames.copy()
-                newNames.append('Event')
-                newMultiIndex = pd.MultiIndex.from_tuples(allLevelValues,names=newNames)
-                newDf = pd.DataFrame(fcsDf.values,index=newMultiIndex,columns=experimentalMarkerNames)
-                completeDataFrameList.append(newDf)
-        completeDf = pd.concat(completeDataFrameList)    
-        completeDf = reindexDataFrame(completeDf,fullDataFrame,True)
-        completeDf.columns.name = 'Markers'
-        print(completeDf)
-        with open('../../semiProcessedData/initialSingleCellDf-'+scalingType+'-'+folderName+'.pkl','wb') as f:
-            pickle.dump(completeDf,f)
-    os.chdir('../..')
+        for row in range(stackedFileFrame.shape[0]):
+            levelValues = fullFileFrameTemp.iloc[row].name
+            cellType = levelValues[0]
+            fileIndex = stackedFileFrame.iloc[row].rfind('/')
+            beforeCellType = stackedFileFrame.iloc[row][:fileIndex]
+            afterCellType = scalingType+'_'+stackedFileFrame.iloc[row][fileIndex+1:]+'_'+cellType+fileExtension
+            fullFileName = beforeCellType+'/'+cellType+'/'+afterCellType
+            
+            fcsDf = pd.read_csv(fullFileName,header=0)
+            eventNumber = fcsDf.shape[0]
+            eventList = range(1,eventNumber+1)
+            allLevelValues = []
+            for event in eventList:
+                allLevelValues.append(list(levelValues)+[event])
+            newMultiIndex = pd.MultiIndex.from_tuples(allLevelValues,names=singleCellLevelNames)
+            newDf = pd.DataFrame(fcsDf.values,index=newMultiIndex,columns=experimentalMarkerNames)
+            completeDataFrameList.append(newDf)
+            print([scalingType]+list(levelValues))
+        completeDataFrame = pd.concat(completeDataFrameList)
+        completeDataFrame.columns.name = 'Markers'
+        print(completeDataFrame)
+        with open('semiProcessedData/initialSingleCellDf-'+scalingType+'-'+folderName+'.pkl','wb') as f:
+            pickle.dump(completeDataFrame,f)
+        if scalingType == 'channel':
+            logicleDataProliferation = completeDataFrame['TCell_Gate'].xs(['TCells'],level=['CellType'])
+            with open('semiProcessedData/logicleProliferationDf.pkl','wb') as f:
+                pickle.dump(logicleDataProliferation,f)
+        else:
+            rawDataProliferation = completeDataFrame['TCell_Gate'].xs(['TCells'],level=['CellType'])
+            with open('semiProcessedData/rawProliferationDf.pkl','wb') as f:
+                pickle.dump(rawDataProliferation,f)
 
 def createProliferationSingleCellDataFrame(folderName,secondPath,experimentNumber,useModifiedDf):
-    logicleDataFull = pickle.load(open('semiProcessedData/initialSingleCellDf-channel-'+folderName+'.pkl','rb'))['TCell_Gate']
-    rawDataFull = pickle.load(open('semiProcessedData/initialSingleCellDf-scale-'+folderName+'.pkl','rb'))['TCell_Gate']
-    logicleData,rawData = proliferationProcesser.createProliferationData(folderName,logicleDataFull,rawDataFull)
-    ggl,tv,tl = proliferationProcesser.returnGatesAndTicks(logicleData,rawData)
-    proliferationProcesser.processProliferationData(folderName,logicleData,rawData,ggl,tv,tl,logicleDataFull)
+    logicleDataProliferation = pickle.load(open('semiProcessedData/logicleProliferationDf.pkl','rb'))
+    rawDataProliferation = pickle.load(open('semiProcessedData/rawProliferationDf.pkl','rb'))
+    proliferationProcesser.processProliferationData(folderName,logicleDataProliferation,rawDataProliferation)
     bulkprolifdf = proliferationProcesser.generateBulkProliferationStatistics(folderName,experimentNumber)
     return bulkprolifdf
 
