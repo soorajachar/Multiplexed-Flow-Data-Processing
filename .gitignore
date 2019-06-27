@@ -1,3 +1,4 @@
 **/*.fcs
 **/*.png
 experiments/
+outputFigures/

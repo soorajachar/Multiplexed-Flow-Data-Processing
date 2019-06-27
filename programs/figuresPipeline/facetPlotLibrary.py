@@ -36,7 +36,7 @@ bandwidth = 0.15
 col_wrap_min = 6
 #shareYVar = True
 titleBool = True
-secondPathBool = True
+secondPathBool = False
 
 #Get level names and values into an easily accessible dictionary
 def createLabelDict(df,dataType):
