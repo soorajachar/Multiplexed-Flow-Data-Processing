@@ -115,7 +115,7 @@ def calibrateExperiment(folderName,secondPath,concUnit,concUnitPrefix,numberOfCa
 #Reshapes plateData list obtained directly from flowjo produced .csv file into a list of arrays, with each array containing all the conditions at a given timepoint on the plate. 
 #PlateData is an n element list where n is the number of samples on a plate. 
 def reshapePlate(plateData,numConditions,numTimePoints,columnsPerTimePoint,contiguous):
-    
+
     #The dummy val is used to fill in "missing" conditions when conditions have blanks between them; e.g. a 12 condition single plate experiment (4 blanks between last condition and end of 2nd column, but first column is full)
     dummyVal = 3.14159
     individualSamples = len(plateData)
@@ -206,7 +206,7 @@ def createAndCombineBaseDataFrames(folderName,allRawData,numPlates,numTimePoints
                     #everything else
                     else:
                         masterMiniPlateAList.append(reshapePlate(allRawData[plateIndex].iloc[:,levelIndex+1],numConditionsA,numTimePoints,columnsPerTimePoint,contiguous))
-
+            
             finalPlateMatrix = []
             for i in range(len(masterMiniPlateAList)):
                 if paired:

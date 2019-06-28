@@ -135,7 +135,7 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                 dataType = 'singlecell'
                 dfArray[dataType] = singlecelldf
 
-            if(scriptToRun in [101,102,103,104,106,107,108]): #Facet plots (line,scatter,scatter w/line for expfits)
+            if(scriptToRun in [101,102,103,104,106,107,108,109,110,111,112,113]): #Facet plots (line,scatter,scatter w/line for expfits)
                 for dfKey in dfArray:
                     if scriptToRun == 101:
                         plotType = '3d'
@@ -152,6 +152,21 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                     elif(scriptToRun == 106):
                         plotType = 'categorical'
                         subPlotType = 'bar'
+                    elif(scriptToRun == 109):
+                        plotType = 'categorical'
+                        subPlotType = 'strip'
+                    elif(scriptToRun == 110):
+                        plotType = 'categorical'
+                        subPlotType = 'stripbar'
+                    elif(scriptToRun == 111):
+                        plotType = 'categorical'
+                        subPlotType = 'swarm'
+                    elif(scriptToRun == 112):
+                        plotType = 'categorical'
+                        subPlotType = 'violin'
+                    elif(scriptToRun == 113):
+                        plotType = 'categorical'
+                        subPlotType = 'box'
                     elif(scriptToRun == 107):
                         plotType = '1d'
                         subPlotType = 'histogram'
@@ -196,6 +211,11 @@ def main():
     parser.add_argument("-lp", action='store_true', help = "Create lineplots for selected experiments.")
     parser.add_argument("-sp", action='store_true', help = "Create scatterplots for selected experiments.")
     parser.add_argument("-bp", action='store_true', help = "Create barplots for selected experiments.")
+    parser.add_argument("-strip", action='store_true', help = "Create striplots for selected experiments.")
+    parser.add_argument("-swarm", action='store_true', help = "Create swarmplots for selected experiments.")
+    parser.add_argument("-violin", action='store_true', help = "Create violinplots for selected experiments.")
+    parser.add_argument("-box", action='store_true', help = "Create boxplots for selected experiments.")
+    parser.add_argument("-stripbar", action='store_true', help = "Create stripbarplots for selected experiments.")
     parser.add_argument("-hist", action='store_true', help = "Create histograms for selected experiments.")
     parser.add_argument("-kde", action='store_true', help = "Create kde for selected experiments.")
     parser.add_argument("-ef", action='store_true', help = "Create scatterplot with exponential fit for selected experiments.")
@@ -246,6 +266,16 @@ def main():
         scriptToRun = 105
     elif(args.bp):
         scriptToRun = 106
+    elif(args.strip):
+        scriptToRun = 109
+    elif(args.stripbar):
+        scriptToRun = 110
+    elif(args.swarm):
+        scriptToRun = 111
+    elif(args.violin):
+        scriptToRun = 112
+    elif(args.box):
+        scriptToRun = 113
     elif(args.hist):
         scriptToRun = 107
     elif(args.kde):

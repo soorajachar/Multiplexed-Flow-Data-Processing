@@ -132,7 +132,7 @@ def levelValuesInFigure_GUIWindow(labelDict):
 #Order essentially is which level is plotted on the x axis, as bar plots are always categorical
 def levelsToPlottingParameters_GUIWindow(labelDict,plotType,subPlotType,dataType):
     if plotType == 'categorical':
-        parameterTypes = ['Color','Order', 'Row', 'Column']
+        parameterTypes = ['Color','Order', 'Row', 'Column','None']
     elif plotType == '1d':
         parameterTypes = ['Color','Row','Column']
     elif plotType == '3d':
@@ -489,7 +489,39 @@ def plotSubsettedFigure(subsettedDf,plottingDf,kwargs,facetgridkwargs,plotType,s
     #2d plots: categorical plots (bar, point), ordered plots (line,scatter)
     elif plotType in ['categorical','ordered']:
         if plotType == 'categorical':
-            fg = sns.catplot(**kwargs,data=plottingDf,kind=subPlotType)
+            if subPlotType == 'stripbar':
+                fg = sns.catplot(**kwargs,data=plottingDf,kind='bar',alpha=0.8)
+                secondkwargs = kwargs.copy()
+                for key in ['row','col','col_order','row_order']:
+                    if key in secondkwargs.keys():
+                        secondkwargs.pop(key,None)
+                axisIndex  = 0
+                if 'row' in kwargs and 'col' in kwargs:
+                    for rowVal in pd.unique(plottingDf[kwargs['row']]):
+                        for colVal in pd.unique(plottingDf[kwargs['col']]):
+                            secondPlottingDf = plottingDf[plottingDf[kwargs['row']] == rowVal]
+                            secondPlottingDf = secondPlottingDf[secondPlottingDf[kwargs['col']] == colVal]
+                            sns.stripplot(**secondkwargs,data=secondPlottingDf,ax=fg.fig.axes[axisIndex])
+                            if rowVal != pd.unique(plottingDf[kwargs['row']])[-1]:
+                                fg.fig.axes[axisIndex].set_xlabel('')
+                            axisIndex+=1
+                else:
+                    if 'row' in kwargs:
+                        for rowVal in pd.unique(plottingDf[kwargs['row']]):
+                            secondPlottingDf = plottingDf[plottingDf[kwargs['row']] == rowVal]
+                            sns.stripplot(**secondkwargs,data=secondPlottingDf,ax=fg.fig.axes[axisIndex])
+                            if rowVal != pd.unique(plottingDf[kwargs['row']])[-1]:
+                                fg.fig.axes[axisIndex].set_xlabel('')
+                            axisIndex+=1
+                    elif 'col' in kwargs:
+                        for colVal in pd.unique(plottingDf[kwargs['col']]):
+                            secondPlottingDf = plottingDf[plottingDf[kwargs['col']] == colVal]
+                            sns.stripplot(**secondkwargs,data=secondPlottingDf,ax=fg.fig.axes[axisIndex])
+                            axisIndex+=1
+                    else:
+                        sns.stripplot(**secondkwargs,data=plottingDf,ax=fg.fig.axes[axisIndex])
+            else:
+                fg = sns.catplot(**kwargs,data=plottingDf,kind=subPlotType)
         elif plotType == 'ordered':
             shareYVar = 'row'
             #Make sure there are markers at each column variable

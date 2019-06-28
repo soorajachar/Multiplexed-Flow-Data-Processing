@@ -12,6 +12,7 @@ from logicle import logicle,quantile
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import string 
 
 listOfCytokines=['IFNg','IL-2','IL-4','IL-6','IL-10','IL-17A','TNFa']
 #sampleIDOrder = True
@@ -123,11 +124,9 @@ def cleanUpFlowjoCSV(fileArray,folderName,dataType):
             sortedFiles.append(temp2)
     if(dataType == 'cyt'):
         newMultiIndex = parseCytokineCSVHeaders(pd.read_csv('semiProcessedData/A1_'+dataType+'.csv').columns)
-        return sortedData,newMultiIndex
     elif(dataType == 'cell'):
         panelData = pd.read_csv('inputFiles/antibodyPanel-'+folderName+'.csv',)
         newMultiIndex = parseCellCSVHeaders(pd.read_csv('semiProcessedData/A1_'+dataType+'.csv').columns,panelData)
-        return sortedData,newMultiIndex
     elif(dataType == 'singlecell'):
         #Grabs a file from samples to read marker names off of
         cellTypeList = []
@@ -135,10 +134,10 @@ def cleanUpFlowjoCSV(fileArray,folderName,dataType):
             if 'DS' not in fileName:
                 cellTypeList.append(fileName)
         newMultiIndex = produceSingleCellHeaders(cellTypeList)
-        return sortedFiles,newMultiIndex
     elif(dataType == 'cytcorr'):
         newMultiIndex = []
-        return sortedData,newMultiIndex
+    sortedFiles[0].to_excel('inputFiles/test.xlsx')
+    return sortedData,newMultiIndex
 
 def produceSingleCellHeaders(cellTypes):
     newMultiIndexList = []
@@ -245,6 +244,8 @@ def parseCellCSVHeaders(columns,panelData):
             #DAPI+ | Freq. of Parent (%)
             #Positive cell percentage statistics do not have channel names, so treat differently
             #GFI or CV
+            if len(populationNameVsStatisticSplit) == 1:
+                populationNameVsStatisticSplit = [' ',populationNameVsStatisticSplit[0]]
             if 'Geometric Mean' in populationNameVsStatisticSplit[1] or 'CV' in populationNameVsStatisticSplit[1]:
                 if 'Comp-' in populationNameVsStatisticSplit[1]:
                     statisticVsChannelSplit = populationNameVsStatisticSplit[1].split(' (Comp-')
