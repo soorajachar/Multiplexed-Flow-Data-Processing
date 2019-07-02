@@ -6,18 +6,27 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+import processProliferationData as proliferationProcesser
 from modifyDataFrames import returnModifiedDf
 from miscFunctions import reindexDataFrame
 
-def produceSingleCellHeaders(cellTypes):
-    newMultiIndexList = []
-    for cellType in cellTypes:
-        newMultiIndexList.append([cellType])
-    return newMultiIndexList
-
 def createInitialSingleCellDataFrame(folderName,experimentNumber,fileNameDataFrame):
+    with open('inputFiles/experimentParameters-'+folderName+'.json') as f:
+        experimentParameters = json.load(f)
+    numConditions = experimentParameters[0][0]
+    numTimePoints = experimentParameters[0][1]
+    parameterNames = []
+    #Uses from product if condition labels not entered in manually, otherwise reads tuples for each condition level with all condition labels within it (e.g. (CD28,N4,100pM),(CD28,N4,10pM)...)
+    if(experimentParameters[5]):
+        multiIndexedObject = pd.MultiIndex.from_tuples(list(zip(*experimentParameters[2])), names=experimentParameters[1])
+    else:
+        multiIndexedObject = pd.MultiIndex.from_product(experimentParameters[2], names=experimentParameters[1])
+    #Adds time units to column headers
+    timepoints = experimentParameters[3]
+    timePointNames = []
+    for i in range(0,len(timepoints)):
+        timePointNames.append(float(timepoints[i]))
     
-    print(fileNameDataFrame)
     #Grabs a file from samples to read marker names off of
     for fileName in os.listdir('semiProcessedData/singleCellData/A1/'):
         if 'DS' not in fileName:
@@ -29,7 +38,7 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber,fileNameDataFra
     experimentalChannelDf = pd.read_csv(tempFileName, header=0)
     experimentalChannelNames = experimentalChannelDf.columns.tolist()
     experimentalMarkerNames = []
-    #Creates column headings for all measured parameters
+    #Creates column heasdings for all measured parameters
     for i in range(len(experimentalChannelNames)):
         if 'FSC-A' in experimentalChannelNames[i]:
             experimentalMarkerNames.append('Size')
@@ -82,6 +91,13 @@ def createInitialSingleCellDataFrame(folderName,experimentNumber,fileNameDataFra
             rawDataProliferation = completeDataFrame['TCell_Gate'].xs(['TCells'],level=['CellType'])
             with open('semiProcessedData/rawProliferationDf.pkl','wb') as f:
                 pickle.dump(rawDataProliferation,f)
+
+def createProliferationSingleCellDataFrame(folderName,secondPath,experimentNumber,useModifiedDf):
+    logicleDataProliferation = pickle.load(open('semiProcessedData/logicleProliferationDf.pkl','rb'))
+    rawDataProliferation = pickle.load(open('semiProcessedData/rawProliferationDf.pkl','rb'))
+    proliferationProcesser.processProliferationData(folderName,logicleDataProliferation,rawDataProliferation)
+    bulkprolifdf = proliferationProcesser.generateBulkProliferationStatistics(folderName,experimentNumber)
+    return bulkprolifdf
 
 def createCompleteSingleCellDf(folderName):
    

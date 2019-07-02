@@ -74,7 +74,8 @@ def replaceSaturatedCytokines(folderName,df,dilutedDf,dilutionFactor):
     return df
 
 #Perform various modifications of dataframe; specific to each experiment (outlier averaging, erroneous value dropping etc.)
-def returnModifiedDf(experimentNumber,df,dataType,excel_data):
+def returnModifiedDf(experimentNumber,df,dataType):
+    excel_data = pd.read_excel('../masterExperimentSpreadsheet.xlsx')
     folderName = excel_data['Full Name'][experimentNumber-1]
     onlyPairs = False
     #Drop positive control aCD3/aCD28, interpolate Q4,1nM T+57 and T4,1uM,T+86 (erroneous)

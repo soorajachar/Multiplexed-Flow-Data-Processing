@@ -55,49 +55,44 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                 print(os.getcwd())
             elif(scriptToRun == 2):
                 print('Creating experiment parameters for: '+str(folderName))
-                exitEnabledSubprocessRun('python3',cwd+'/setUpExperiment.py','',False)
-            elif(scriptToRun == 6):
-                print('Creating plate layout for: '+str(folderName))
-                experimentParameters = json.load(open('inputFiles/experimentParameters-'+folderName+'.json','r'))
-                parametersUpdatedByGridGUI = pickle.load(open('inputFiles/gui-parametersUpdatedByGridGUI.pkl','rb'))
-                rpgui.produceGUIBasedIndexingCoordinates(folderName,cwd,experimentParameters,parametersUpdatedByGridGUI)
+                openOldHeatMap = False
+                setUpExperiment.createParameters(folderName,ex_data['NumConditions'][expIndex],ex_data['NumTimepoints'][expIndex],openOldHeatMap)
             elif(scriptToRun == 3):
                 print('Creating Dataframes for: '+str(folderName))
-                experimentParameters = json.load(open('inputFiles/experimentParameters-'+folderName+'.json','r'))
-                levelLayouts = pickle.load(open('inputFiles/levelLayouts.pkl','rb'))
-                experimentLevelLayoutDict = idp.tilePlateLayouts(experimentParameters,levelLayouts)
-                allColumnVariableCoordinates = idp.arrangeColumVariableBasedCoordinates(experimentParameters,experimentLevelLayoutDict)
                 if(cellTypeArray[0]):
-                    dataType = 'cyt'
                     numberOfCalibrationSamples = ex_data['NumberOfCBAStandardDilutions'][expIndex]
                     initialStandardVolume = ex_data['CBAStandardDilutedVolume'][expIndex]
-                    cydp.calibrateExperiment(folderName,secondPath,concUnit,concUnitPrefix,numberOfCalibrationSamples,initialStandardVolume)
-                    basecytdf = idp.createBaseDataFrame(experimentParameters,folderName,expNum,dataType,allColumnVariableCoordinates,experimentLevelLayoutDict)
-                    cytdf = cydp.createCytokineDataFrame(folderName,basecytdf,concUnitPrefix)
-                    idp.saveFinalDataFrames(folderName,secondPath,expNum,dataType,cytdf,ex_data) 
+                    idp.calibrateExperiment(folderName,secondPath,concUnit,concUnitPrefix,numberOfCalibrationSamples,initialStandardVolume)
+                    cytdf = idp.createFullDataFrames(folderName,secondPath,expNum,concUnit,concUnitPrefix,'cyt')
+                    idp.convertDataFramestoExcel(folderName,secondPath,'cyt',cytdf,useModifiedDf)
                 if(cellTypeArray[1]):
-                    dataType = 'cell'
-                    celldf = idp.createBaseDataFrame(experimentParameters,folderName,expNum,dataType,allColumnVariableCoordinates,experimentLevelLayoutDict)
-                    idp.saveFinalDataFrames(folderName,secondPath,expNum,dataType,celldf,ex_data) 
+                    celldf = idp.createFullDataFrames(folderName,secondPath,expNum,concUnit,concUnitPrefix,'cell')
+                    idp.convertDataFramestoExcel(folderName,secondPath,'cell',celldf,useModifiedDf)
                 if(cellTypeArray[2]):
-                    dataType = 'prolif'
                     fileList = os.listdir('semiProcessedData')
                     if (('initialSingleCellDf-channel-'+folderName+'.pkl' not in fileList) or ('initialSingleCellDf-scale-'+folderName+'.pkl' not in fileList)):
-                        fileNameDf = idp.createBaseDataFrame(experimentParameters,folderName,expNum,'cell',allColumnVariableCoordinates,experimentLevelLayoutDict)
-                        finaldf = scdp.createInitialSingleCellDataFrame(folderName,expNum,fileNameDf)
-                    prolifdf = pdp.createProliferationSingleCellDataFrame(folderName,secondPath,expNum,useModifiedDf)
-                    idp.saveFinalDataFrames(folderName,secondPath,expNum,dataType,prolifdf,ex_data) 
+                        scdp.createInitialSingleCellDataFrame(folderName,expNum)
+                        scdf = idp.createFullDataFrames(folderName,secondPath,expNum,concUnit,concUnitPrefix,'singlecell')
+                    bulkprolifdf = scdp.createProliferationSingleCellDataFrame(folderName,secondPath,expNum,useModifiedDf)
+                    idp.convertDataFramestoExcel(folderName,secondPath,'prolif',bulkprolifdf,useModifiedDf)
                 if(cellTypeArray[3]):
-                    dataType = 'singlecell'
                     fileList = os.listdir('semiProcessedData')
                     if (('initialSingleCellDf-channel-'+folderName+'.pkl' not in fileList) or ('initialSingleCellDf-scale-'+folderName+'.pkl' not in fileList)):
-                        dataType = 'singlecell'
-                        fileNameDf = idp.createBaseDataFrame(experimentParameters,folderName,expNum,'cell',allColumnVariableCoordinates,experimentLevelLayoutDict)
-                        scdf = scdp.createInitialSingleCellDataFrame(folderName,expNum,fileNameDf)
+                        scdf = idp.createFullDataFrames(folderName,secondPath,expNum,concUnit,concUnitPrefix,'singlecell')
+                        scdp.createInitialSingleCellDataFrame(folderName,expNum,scdf)
                     if 'singleCellDataFrame-proliferation-'+folderName+'.pkl' in fileList:
                         if experimentType not in ['AntibodyTest']:
                             scdp.createCompleteSingleCellDf(folderName)
             
+            elif(scriptToRun == 4): #Preprocess data for neural network
+                print('Preprocessing data for: '+str(folderName))
+                if('raw' in modelName):
+                    aeppdm.preprocessDataNoTimeComponent(secondPath,expNum,pickle.load(open('semiProcessedData/modifiedCytokineConcentrationPickleFile-'+folderName+'.pkl','rb')),modelName)
+                elif('partitioned' in modelName):
+                    aeppdm.preprocessDataTimePointPartitioning(secondPath,expNum,pickle.load(open('semiProcessedData/modifiedCytokineConcentrationPickleFile-'+folderName+'.pkl','rb')),modelName)
+                elif('parameterized' in modelName):
+                    aeppdm.preprocessDataExpFitParameterizing(secondPath,expNum,modelName)
+                    #aeppdm.preprocessDataTimePointPartitioningExpFitParameterizing(secondPath,expNum,pickle.load(open('semiProcessedData/modifiedCytokineConcentrationPickleFile-'+folderName+'.pkl','rb')),modelName)
             elif(scriptToRun == 5):
                 print('Creating Exponential Fitting Parameter Dataframe for: '+str(folderName))
                 efpm.createParameterDataFrame(secondPath,expNum,pickle.load(open('semiProcessedData/modifiedCytokineConcentrationPickleFile-'+folderName+'.pkl','rb')))
@@ -198,11 +193,11 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
         else: #Not supported
             pass
 def main():
+    #os.chdir('dataProcessing')
     parser = argparse.ArgumentParser(description="Create experiment, process data, run analysis/visualization/neural network scripts on data.")
     
     parser.add_argument("-ce", action='store_true', help="Create experiment folders and subfolders.")
-    parser.add_argument("-ep", action='store_true', help="Create input parameters for experiment based on user input.")
-    parser.add_argument("-pgui", action='store_true', help="Create plate condition level layout files using a GUI.")
+    parser.add_argument("-ep", action='store_true', help="Create input parameters for experiment based on master experiment spreadsheet input data.")
     parser.add_argument("-pd", action='store_true', help = "Create pickle files and multindexed data frame for selected experiments.")
     parser.add_argument("-fp", action='store_true', help = "Create exp fitting parameter dataframes for selected experiments.")
     
@@ -263,8 +258,6 @@ def main():
         scriptToRun = 4
     elif(args.fp):
         scriptToRun = 5
-    elif(args.pgui):
-        scriptToRun = 6
     elif(args.hm):
         scriptToRun = 101
     elif(args.lp):
@@ -304,5 +297,4 @@ def main():
     elif(args.mi):
         scriptToRun = 205
     runPipelinedScript(scriptToRun,inputString,args.m,cellTypeArray)
-
 main()

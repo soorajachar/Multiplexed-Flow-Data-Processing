@@ -1,28 +1,12 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thursday July 5 13:52:27 2018
-
-@author: acharsr
-"""
-from pathlib import Path
-import pickle
-from itertools import product,combinations
 import numpy as np
-import pickle,sys,os,json,math,subprocess,string
+import pickle,os,json
 from tkinter import *
 import tkinter as tk
 
 experimentParameters = {}
 parametersUpdatedByGridGUI = {}
 exitBoolean = False
-
-#Make experiment folder and subfolders
-def createExperimentFolders(folderName):
-    subprocess.run(['mkdir',folderName])
-    experimentFolderNames = ['inputFiles','semiProcessedData','fullyProcessedFigures','semiProcessedData/singleCellData']
-    for experimentFolderName in experimentFolderNames:
-        subprocess.run(['mkdir',folderName+'/'+experimentFolderName])
 
 class SampleApp(tk.Tk):
     def __init__(self):
@@ -240,8 +224,10 @@ class conditionLevelValuesPage(tk.Frame):
         tk.Button(self, text="Back",command=lambda: master.switch_frame(columnLevelValuesPage)).grid(row=numConditionLevels+1,column=int(maxLevelValues/2)+1)
         tk.Button(self, text="Quit",command=lambda: quitCommand()).grid(row=numConditionLevels+1,column=int(maxLevelValues/2)+2)
 
-if __name__ == '__main__':
+def main():
     global folderName
     folderName = os.getcwd().split('/')[-1]
     app = SampleApp()
     app.mainloop()
+
+main()

@@ -478,7 +478,7 @@ def plotSubsettedFigure(subsettedDf,plottingDf,kwargs,facetgridkwargs,plotType,s
         #Will need to update to make sure it pulls from y axis variable
         if subPlotType == 'kde':
             fg = sns.FacetGrid(plottingDf,sharey=False,legend_out=True,**kwargs)
-            fg.map(sns.kdeplot,'GFI',shade=True,bw=bandwidth)
+            fg.map(sns.kdeplot,'GFI',shade=False,bw=bandwidth)
         elif subPlotType == 'histogram':
             fg = sns.FacetGrid(plottingDf,sharey=False,legend_out=True,**kwargs)
             fg.map(sns.distplot,'GFI',bins=256,kde=False)
@@ -489,8 +489,12 @@ def plotSubsettedFigure(subsettedDf,plottingDf,kwargs,facetgridkwargs,plotType,s
     #2d plots: categorical plots (bar, point), ordered plots (line,scatter)
     elif plotType in ['categorical','ordered']:
         if plotType == 'categorical':
-            if subPlotType == 'stripbar':
-                fg = sns.catplot(**kwargs,data=plottingDf,kind='bar',alpha=0.8)
+            if subPlotType in ['barstrip','pointstrip']:
+                plotKind = subPlotType.split('stri')[0]
+                if plotKind == 'point':
+                    fg = sns.catplot(**kwargs,data=plottingDf,kind=plotKind,ci='sd',join=False,color='k',capsize=0.05,markers='_',zorder=3,errwidth=1)
+                else:
+                    fg = sns.catplot(**kwargs,data=plottingDf,kind=plotKind,alpha=0.8,join=False)
                 secondkwargs = kwargs.copy()
                 for key in ['row','col','col_order','row_order']:
                     if key in secondkwargs.keys():
@@ -501,7 +505,7 @@ def plotSubsettedFigure(subsettedDf,plottingDf,kwargs,facetgridkwargs,plotType,s
                         for colVal in pd.unique(plottingDf[kwargs['col']]):
                             secondPlottingDf = plottingDf[plottingDf[kwargs['row']] == rowVal]
                             secondPlottingDf = secondPlottingDf[secondPlottingDf[kwargs['col']] == colVal]
-                            sns.stripplot(**secondkwargs,data=secondPlottingDf,ax=fg.fig.axes[axisIndex])
+                            sns.stripplot(**secondkwargs,data=secondPlottingDf,ax=fg.fig.axes[axisIndex],zorder=1)
                             if rowVal != pd.unique(plottingDf[kwargs['row']])[-1]:
                                 fg.fig.axes[axisIndex].set_xlabel('')
                             axisIndex+=1
@@ -584,7 +588,8 @@ def plotSubsettedFigure(subsettedDf,plottingDf,kwargs,facetgridkwargs,plotType,s
 
     #Save figure
     fg.fig.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
-    fg.fig.savefig('../../outputFigures/'+fullTitleString+'.png',bbox_inches='tight')
+    if secondPathBool:
+        fg.fig.savefig('../../outputFigures/'+fullTitleString+'.png',bbox_inches='tight')
     print(fullTitleString+' plot saved')
     plt.clf()
 

@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 import sys,os,argparse
 import pandas as pd
-import pickle,warnings
-import setUpExperiment
+import pickle,warnings,json,subprocess
+import setUpExperiment 
 import matplotlib
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+from miscFunctions import parseCommandLineNNString,exitEnabledSubprocessRun
+import runPlateGUI as rpgui 
 import initialDataProcessing as idp
-#import preprocessDataMaster as aeppdm
-from miscFunctions import parseCommandLineNNString
-sys.path.insert(0, '../kineticFeatures/')
-sys.path.insert(0, '../figuresPipeline/')
+import cytokineDataProcessing as cydp
+#import cellDataProcessing as cdp
+import proliferationDataProcessing as pdp
+import singleCellDataProcessing as scdp
+sys.path.insert(0, '../../figuresPipeline/')
 import facetPlotLibrary as fpl
 import singleStainHistogramMaster as sshm
-#import exponentialFitMaster as efpm
 import isomapMaster as im
 import mutualInformationMaster as mi
-import singleCellDataProcessing as scdp
 import matplotlib.pyplot as plt
 
-pathToExperimentSpreadsheet = '../../experiments/'
+pathToExperimentSpreadsheet = '../../../experiments/'
 secondPath = '../../outputData'
 
 concUnit = 1e9
@@ -38,9 +39,9 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
         #Local; only used by me
         if 'Volumes' not in cwd:
             if scriptToRun != 1:
-                os.chdir('../../experiments/'+folderName)
+                os.chdir('experiments/'+folderName)
             else:
-                os.chdir('../../experiments/')
+                os.chdir('experiments/')
         #NIH Server; used by other people
         else:
             if scriptToRun != 1:
@@ -97,19 +98,11 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
                     if 'singleCellDataFrame-proliferation-'+folderName+'.pkl' in fileList:
                         if experimentType not in ['AntibodyTest']:
                             scdp.createCompleteSingleCellDf(folderName)
-            
-            elif(scriptToRun == 5):
-                print('Creating Exponential Fitting Parameter Dataframe for: '+str(folderName))
-                efpm.createParameterDataFrame(secondPath,expNum,pickle.load(open('semiProcessedData/modifiedCytokineConcentrationPickleFile-'+folderName+'.pkl','rb')))
-                trainingSetExperiments = []
-                for i in range(len(ex_data['Full Name'])):
-                    if ex_data['IncludeInParameterTrainingSet'][i] == '*':
-                        trainingSetExperiments.append(i+1)
-                efpm.updateTrainingSet(secondPath,trainingSetExperiments)
             if(scriptToRun == 1):
-                os.chdir('../programs/dataProcessing/')
+                print(os.getcwd())
+                os.chdir('../../../../programs/dataProcessing/')
             else:
-                os.chdir('../../programs/dataProcessing/')
+                os.chdir('../../../../../programs/dataProcessing/')
         
         elif(int(scriptToRun/100.) == 1): #Figures
             
@@ -198,6 +191,7 @@ def runPipelinedScript(scriptToRun,inputString,useModifiedDf,cellTypeArray):
         else: #Not supported
             pass
 def main():
+    #os.chdir('dataProcessing')
     parser = argparse.ArgumentParser(description="Create experiment, process data, run analysis/visualization/neural network scripts on data.")
     
     parser.add_argument("-ce", action='store_true', help="Create experiment folders and subfolders.")
@@ -304,5 +298,4 @@ def main():
     elif(args.mi):
         scriptToRun = 205
     runPipelinedScript(scriptToRun,inputString,args.m,cellTypeArray)
-
 main()
