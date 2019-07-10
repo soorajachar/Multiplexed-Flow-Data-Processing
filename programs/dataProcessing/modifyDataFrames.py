@@ -187,7 +187,6 @@ def returnModifiedDf(experimentNumber,df,dataType,excel_data):
         elif dataType == 'cell':
             df = df.drop(index='Blank',level='TumorCellNumber')
     elif(experimentNumber == 83):
-        print(df)
         if dataType == 'cyt':
             if(onlyPairs):
                 df1 = df.iloc[:5,:]
@@ -226,7 +225,6 @@ def returnModifiedDf(experimentNumber,df,dataType,excel_data):
     elif(experimentNumber == 87):
         if dataType == 'cell':
             df = pd.concat([df.iloc[:,:-2],df.iloc[:,-1]],axis=1)
-            print(df)
             #df = dropLevel(df,71.0,'Time')
         if dataType == 'sc':
             df = dropLevel(df,71.0,'Time')
@@ -300,6 +298,4 @@ def returnModifiedDf(experimentNumber,df,dataType,excel_data):
     #Need to change original index order to real way of keep index order (with reset_index in single cell processing scripts)
     modifiedDf = df.copy()
     modifiedDf.columns.name = 'Time'
-    print('modified')
-    print(modifiedDf)
     return modifiedDf

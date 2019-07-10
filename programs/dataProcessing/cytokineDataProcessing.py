@@ -6,17 +6,56 @@ created on sat jul 21 13:12:56 2018
 @author: acharsr
 """
 import json,pickle,math,matplotlib,sys,os,string
+from sys import platform as sys_pf
+if sys_pf == 'darwin':
+    import matplotlib
+    matplotlib.use("TkAgg")
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 from itertools import groupby
 from miscFunctions import Hill,InverseHill,r_squared,cleanUpFlowjoCSV
-from modifyDataFrames import returnModifiedDf
+import tkinter as tk
 
 #Standard BD Biosciences CBA Kit Cytokines
 listOfCytokines=['IFNg','IL-2','IL-4','IL-6','IL-10','IL-17A','TNFa']
 MWofCytokines=[17200,17200,14000,21900,18900,15500,17500] #g/mol, correct one
+
+class CalibrationParameterPage(tk.Frame):
+    def __init__(self, master,folderName,expNum,ex_data,shp):
+        tk.Frame.__init__(self, master)
+        
+        secondaryhomepage = shp
+        
+        experimentNameWindow = tk.Frame(self)
+        experimentNameWindow.pack(side=tk.TOP,padx=10,pady=10)
+        experimentNameLabel = tk.Label(experimentNameWindow,text=folderName+':').pack()
+        
+        mainWindow = tk.Frame(self)
+        mainWindow.pack(side=tk.TOP,padx=10,pady=10) 
+        
+        l1 = tk.Label(mainWindow,text='Number of CBA calibration samples: ').grid(row=0,column=0)
+        t1 = tk.Entry(mainWindow)
+        t1.grid(row=1,column=0,sticky=tk.W)
+
+        l2 = tk.Label(mainWindow,text='Volume of initial CBA calibration solution: ').grid(row=0,column=1)
+        t2 = tk.Entry(mainWindow)
+        t2.grid(row=1,column=1,sticky=tk.W)
+         
+        def collectInputs():
+            numCalibrationSamples = int(t1.get())
+            initialStandardVolume = float(t2.get())
+            calibrationParameterDict = {'Number': numCalibrationSamples,'Volume': initialStandardVolume}
+            with open('inputFiles/CBAcalibrationParameters-'+folderName+'.json','w') as f:
+                json.dump(calibrationParameterDict,f)
+            master.switch_frame(secondaryhomepage,folderName,expNum,ex_data)
+
+        buttonWindow = tk.Frame(self)
+        buttonWindow.pack(side=tk.TOP,pady=10)
+
+        tk.Button(buttonWindow, text="OK",command=lambda: collectInputs()).grid(row=5,column=0)
+        tk.Button(buttonWindow, text="Quit",command=quit).grid(row=5,column=2)
 
 def parseCytokineCSVHeaders(columns):
     #,Beads/IFNg | Geometric Mean (YG586-A),Beads/IL-2 | Geometric Mean (YG586-A),Beads/IL-4 | Geometric Mean (YG586-A),Beads/IL-6 | Geometric Mean (YG586-A),Beads/IL-10 | Geometric Mean (YG586-A),Beads/IL-17A | Geometric Mean (YG586-A),Beads/TNFa | Geometric Mean (YG586-A),

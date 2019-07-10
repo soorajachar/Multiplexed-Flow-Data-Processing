@@ -6,12 +6,18 @@ created on sat jul 21 13:12:56 2018
 @author: acharsr
 """
 import os,sys,pickle,math,re,subprocess
+from sys import platform as sys_pf
+if sys_pf == 'darwin':
+    import matplotlib
+    matplotlib.use("TkAgg")
 import numpy as np
 from scipy.optimize import curve_fit
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import string 
+import tkinter as tk
+import tkinter.font as tkfont
 
 def r_squared(xdata,ydata,func,popt):
     residuals = ydata- func(xdata, *popt)
@@ -96,8 +102,6 @@ def sortSINumerically(listSI,sort,descending):
     sortedListSI = []
     for elem in numericIndices:
         sortedListSI.append(listSI[elem])
-    print(sortedListSI)
-    print(numericList)
     return sortedListSI,numericList
 
 #Used to interpret experimentnumbers
@@ -193,6 +197,25 @@ def returnTicks(xticksToUse):
     
     return xtickValues,xtickLabels
 
+def returnGates(logicleData,rawData,generationZeroBoundary):
+    parentGenerationPresent = True
+    maxGenerationNumber = 6
+    newtemplin = logicleData.values.ravel(order='F')
+    newtempraw = rawData.values.ravel(order='F')
+    generationGatesLinear = [newtemplin[find_nearest(newtempraw,generationZeroBoundary)[1]]]
+    #Get CTV GFI means for each generation by dividing initial GFI (raw) by 2 for each division
+    generationZeroGFI = 0.75*generationZeroBoundary
+    generationMeansLog = [generationZeroGFI]
+    for generation in range(maxGenerationNumber):
+        generationMeansLog.append(generationMeansLog[generation]/2)
+    #Create initial gates at values between each set of division means. Undivided generation and final generation have boundaries at right, left edges of plot respectively
+    generationGatesLog = []
+    for generation in range(maxGenerationNumber-1):
+        generationGatesLog.append((generationMeansLog[generation]+generationMeansLog[generation+1])*0.5)
+    for gateval in generationGatesLog:
+        generationGatesLinear.append(newtemplin[find_nearest(newtempraw,gateval)[1]])
+    return generationGatesLinear
+
 def extractValues(currentLevelLayout,valueToRemove,equalityBoolean):
     if equalityBoolean:
         idx = np.argwhere(np.all(currentLevelLayout[..., :] == valueToRemove, axis=0))
@@ -217,4 +240,8 @@ def exitEnabledSubprocessRun(command,script,inputVariable,hasInput):
             pickle.dump(exitBoolean,f)
         sys.exit(0)
 
-    exitEnabledSubprocessRun('python3',pathToScript+'/initializePlateStructure.py','',False)
+def setMaxWidth(stringList, element):
+    f = tkfont.nametofont(element.cget("font"))
+    zerowidth=f.measure("0")
+    w=max([f.measure(i) for i in stringList])/zerowidth
+    element.config(width=math.ceil(1.2*w))

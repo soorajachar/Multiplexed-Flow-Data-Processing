@@ -111,6 +111,12 @@ def arrangeColumVariableBasedCoordinates(experimentParameters,experimentLevelLay
     return allColumnVariableCoordinates
 
 def createBaseDataFrame(experimentParameters,folderName,experimentNumber,dataType,allColumnVariableCoordinates,experimentLevelLayoutDict):
+    if dataType == 'singlecell':
+        realDataType = 'singlecell'
+        dataType = 'cell'
+    else:
+        realDataType = dataType
+
     dim = experimentParameters['overallPlateDimensions']
 
     plateNames = []
@@ -123,7 +129,7 @@ def createBaseDataFrame(experimentParameters,folderName,experimentNumber,dataTyp
             plateNames.append('A'+str(i+1))
     
     sortedData,sortedFiles = cleanUpFlowjoCSV(plateNames,folderName,dataType)
-    allRawData,newLevelList = returnMultiIndex(sortedData,sortedFiles,dataType,folderName)
+    allRawData,newLevelList = returnMultiIndex(sortedData,sortedFiles,realDataType,folderName)
     fullExperimentData = []
     for levelIndex in range(len(newLevelList)):
         dataTypeLevel = newLevelList[levelIndex]
@@ -199,7 +205,7 @@ def createBaseDataFrame(experimentParameters,folderName,experimentNumber,dataTyp
                 levelValue = conditionLevelValues[int(numericLevelValue)-1]
                 indexingTuple.append(levelValue)
             indexingTupleList.append(indexingTuple)
-        newMultiIndex = pd.MultiIndex.from_tuples(indexingTupleList,names=dataTypeLevelNames[dataType]+experimentParameters['conditionLevelNames'])
+        newMultiIndex = pd.MultiIndex.from_tuples(indexingTupleList,names=dataTypeLevelNames[realDataType]+experimentParameters['conditionLevelNames'])
         newLevelDataFrame = pd.DataFrame(newDataLayout,index=newMultiIndex,columns=experimentParameters['columnLevelValues'])
         newLevelDataFrame.columns.name = experimentParameters['columnVariableName']
         fullExperimentData.append(newLevelDataFrame)
@@ -225,13 +231,12 @@ def convertDataFramesToExcel(folderName,secondPath,dataType,df,useModifiedDf):
     print(dataType[0].upper()+dataType[1:]+' Excel file Saved')
 
 def saveFinalDataFrames(folderName,secondPath,experimentNumber,dataType,fullExperimentDf,excel_data):
-    #modifiedFullExperimentDf = returnModifiedDf(experimentNumber,fullExperimentDf,dataType,excel_data)
+    modifiedFullExperimentDf = returnModifiedDf(experimentNumber,fullExperimentDf,dataType,excel_data)
     with open('semiProcessedData/'+dataTypeDataFrameFileNames[dataType]+'-'+folderName+'.pkl', "wb") as f:
         pickle.dump(fullExperimentDf, f)
-    #with open('semiProcessedData/'+dataTypeDataFrameFileNames[dataType]+''+folderName+'-modified.pkl', "wb") as f:
-    #    pickle.dump(modifiedFullExperimentDf, f)
-    if dataType != 'singlecell':
-        convertDataFramesToExcel(folderName,secondPath,dataType,fullExperimentDf,False)
-        #convertDataFramesToExcel(folderName,secondPath,dataType,modifiedFullExperimentDf,True)
+    with open('semiProcessedData/'+dataTypeDataFrameFileNames[dataType]+'-'+folderName+'-modified.pkl', "wb") as f:
+        pickle.dump(modifiedFullExperimentDf, f)
+    convertDataFramesToExcel(folderName,secondPath,dataType,fullExperimentDf,False)
+    convertDataFramesToExcel(folderName,secondPath,dataType,modifiedFullExperimentDf,True)
     print(fullExperimentDf)
-    #print(modifiedFullExperimentDf)
+    print(modifiedFullExperimentDf)

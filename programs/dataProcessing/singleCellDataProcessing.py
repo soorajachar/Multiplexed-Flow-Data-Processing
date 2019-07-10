@@ -1,7 +1,10 @@
 #!/usr/bin/env python3 
 import math,pickle,os,sys,fcsparser,json,time,glob
+from sys import platform as sys_pf
+if sys_pf == 'darwin':
+    import matplotlib
+    matplotlib.use("TkAgg")
 import numpy as np
-import matplotlib
 from matplotlib import pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -17,34 +20,43 @@ def produceSingleCellHeaders(cellTypes):
 
 def createInitialSingleCellDataFrame(folderName,experimentNumber,fileNameDataFrame):
     
-    print(fileNameDataFrame)
     #Grabs a file from samples to read marker names off of
     for fileName in os.listdir('semiProcessedData/singleCellData/A1/'):
         if 'DS' not in fileName:
             cellType = fileName
     tempFilePath = 'semiProcessedData/singleCellData/A1/'+cellType+'/' 
     fileExtension = '.csv'
-    print(os.getcwd())
     tempFileName = glob.glob(tempFilePath+'*'+fileExtension)[0]
     experimentalChannelDf = pd.read_csv(tempFileName, header=0)
     experimentalChannelNames = experimentalChannelDf.columns.tolist()
     experimentalMarkerNames = []
+    gatingMarkers = pickle.load(open('inputFiles/gateVals.pkl','rb'))
     #Creates column headings for all measured parameters
     for i in range(len(experimentalChannelNames)):
-        if 'FSC-A' in experimentalChannelNames[i]:
-            experimentalMarkerNames.append('Size')
-        elif 'SSC-A' in experimentalChannelNames[i]:
-            experimentalMarkerNames.append('Granularity')
-        elif 'CTV' in experimentalChannelNames[i]:
-            experimentalMarkerNames.append('TCell_Gate')
-        elif 'CTFR' in experimentalChannelNames[i] or 'FarRed Cell Trace' in experimentalChannelNames[i]:
-            experimentalMarkerNames.append('APC_Gate')
+        #"Comp-APC-A :: CTFR"
+        if('::' in experimentalChannelNames[i]):
+            experimentalMarkerName = experimentalChannelNames[i].split(' :: ')[1]
         else:
-            #"Comp-APC-A :: CTFR"
-            if('::' in experimentalChannelNames[i]):
-                experimentalMarkerNames.append(experimentalChannelNames[i].split(' :: ')[1])
+            experimentalMarkerName = experimentalChannelNames[i]
+        if len(gatingMarkers) > 0:
+            if gatingMarkers['TCell_Gate'] == experimentalMarkerName:
+                experimentalMarkerNames.append('TCell_Gate')
+            elif gatingMarkers['APC_Gate'] == experimentalMarkerName:
+                experimentalMarkerNames.append('APC_Gate')
             else:
-                experimentalMarkerNames.append(experimentalChannelNames[i])
+                if 'FSC-A' in experimentalChannelNames[i]:
+                    experimentalMarkerNames.append('Size')
+                elif 'SSC-A' in experimentalChannelNames[i]:
+                    experimentalMarkerNames.append('Granularity')
+                else:
+                    experimentalMarkerNames.append(experimentalMarkerName)
+        else:
+            if 'FSC-A' in experimentalChannelNames[i]:
+                experimentalMarkerNames.append('Size')
+            elif 'SSC-A' in experimentalChannelNames[i]:
+                experimentalMarkerNames.append('Granularity')
+            else:
+                experimentalMarkerNames.append(experimentalMarkerName)
     stackedFileFrame = fileNameDataFrame.stack()
     levelNames = list(stackedFileFrame.index.names)
     singleCellLevelNames = levelNames+['Event']
