@@ -40,6 +40,7 @@ def returnMultiIndex(sortedData,sortedFiles,dataType,folderName):
 
 def tilePlateLayouts(experimentParameters,levelLayouts):
     #Retile smaller layouts to fill overall plate dimensions
+    print(levelLayouts)
     baseLevelLayout = levelLayouts[0]
     baseLevelLayoutNoZeros = extractValues(baseLevelLayout,0,True)
     emptyLevelLayout = np.zeros(baseLevelLayout.shape)

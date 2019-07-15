@@ -151,6 +151,7 @@ def reindexDataFrame(dfToReindex,indexdf,singlecellToNonSinglecell):
                 indexingLevelNames = tuple(indexingDf.iloc[row].name)
             else:
                 indexingLevelNames = indexingDf.iloc[row].name
+            print(dfToReindex)
             dfToReindexValues = dfToReindex.loc[idx[indexingLevelNames],:]
             reindexedDfMatrix[row,:] = dfToReindexValues
         reindexedDf = pd.DataFrame(reindexedDfMatrix,index=indexingDf.index,columns=dfToReindex.columns)
@@ -164,10 +165,15 @@ def reindexDataFrame(dfToReindex,indexdf,singlecellToNonSinglecell):
             dfToReindexValues = dfToReindex.loc[idx[stackedLevelNames],:]
             stackedLength = dfToReindexValues.shape[0]
             reindexedDfMatrix[k:k+stackedLength,:] = dfToReindexValues
-            for eventVal in range(1,1+stackedLength):
-                reindexedLevelNames.append(list(levelNames)+[eventVal])
+            if dfToReindex.index.names[-1] == 'Event':
+                for eventVal in range(1,1+stackedLength):
+                    reindexedLevelNames.append(list(levelNames)+[eventVal])
+            else:
+                reindexedLevelNames.append(list(levelNames))
             row+=1
             k+=stackedLength
+        print(reindexedLevelNames)
+        print(dfToReindex.index.names)
         reindexedMultiIndex = pd.MultiIndex.from_tuples(reindexedLevelNames,names=dfToReindex.index.names)
         reindexedDf = pd.DataFrame(reindexedDfMatrix,index=reindexedMultiIndex,columns=dfToReindex.columns)
     return reindexedDf

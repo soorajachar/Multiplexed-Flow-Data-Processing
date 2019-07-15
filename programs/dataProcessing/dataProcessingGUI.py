@@ -37,6 +37,8 @@ Full_Detector_Dict = {'FACS':FACS_Detector_Names,'CyTOF':CyTOF_Detector_Names}
 class DataProcessingStartPage(tk.Frame):
     def __init__(self, master,folderName,expNum,ex_data):
         tk.Frame.__init__(self, master)
+            
+        #os.chdir(master.homedirectory+'/'+folderName)
         
         experimentNameWindow = tk.Frame(self)
         experimentNameWindow.pack(side=tk.TOP,padx=10,pady=10)

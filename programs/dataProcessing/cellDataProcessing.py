@@ -15,9 +15,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 from itertools import groupby
-from miscFunctions import Hill,InverseHill,r_squared,cleanUpFlowjoCSV
+from miscFunctions import Hill,InverseHill,r_squared,cleanUpFlowjoCSV,setMaxWidth
 from modifyDataFrames import returnModifiedDf
-from miscFunctions import setMaxWidth
 import tkinter as tk
 
 FACS_Detector_Names = ['BV421-A','BV510-A','BV605-A','BV605-A','BV650-A','BV711-A','BV786-A','BUV396-A','DAPI-A','BUV737-A','APC-A','Alexa Fluor 700-A','APC-Cy7-A','FITC-A','PerCP-Cy5-5-A','PE ( 561 )-A','PE-CF594-A','PE-Cy5-A','PE-Cy7-A']

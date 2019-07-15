@@ -279,7 +279,7 @@ class assignLevelsToParametersPage(tk.Frame):
     def __init__(self, master):
         parameterTypeDict = {
                 'categorical':['Color','Order', 'Row', 'Column','None'],
-                '1d':['Color','Row','Column','None'],
+                '1d':['Color','Row','Column'],
                 '2d':['Marker','Color','Size','Row','Column','X Axis Values','None'],
                 '3d':['Row','Column','X Axis Values','Y Axis Values']}
         
@@ -305,13 +305,7 @@ class assignLevelsToParametersPage(tk.Frame):
         
         def collectInputs():
             for parameterVar,levelName in zip(parameterVarList,figureLevelList):
-                if parameterTypeDict[plotType][parameterVar.get()] not in parametersSelected.keys():
-                    parametersSelected[parameterTypeDict[plotType][parameterVar.get()]] = levelName
-                else:
-                    if not isinstance(parametersSelected[parameterTypeDict[plotType][parameterVar.get()]],list):
-                        parametersSelected[parameterTypeDict[plotType][parameterVar.get()]] = [parametersSelected[parameterTypeDict[plotType][parameterVar.get()]]]+[levelName]
-                    else:
-                        parametersSelected[parameterTypeDict[plotType][parameterVar.get()]] = parametersSelected[parameterTypeDict[plotType][parameterVar.get()]].append(levelName)
+                parametersSelected[parameterTypeDict[plotType][parameterVar.get()]] = levelName
             master.switch_frame(plotElementsGUIPage)
         
         def quitCommand():
@@ -354,7 +348,6 @@ class plotElementsGUIPage(tk.Frame):
     def __init__(self, master):
         axisDict = {'categorical':['X','Y'],'1d':['Y'],'2d':['X','Y'],'3d':['X','Y','Colorbar']}
         scalingList = ['Linear','Logarithmic','Biexponential']
-        axisSharingList = ['row','col','']
         axisTitleDefaults = getDefaultAxisTitles() 
 
         tk.Frame.__init__(self, master)
@@ -367,18 +360,13 @@ class plotElementsGUIPage(tk.Frame):
             tk.Label(mainWindow, text=scaling+' Scaling: ').grid(row=scalingIndex+2,column=0,sticky=tk.W)
         tk.Label(mainWindow, text='Linear Range (Biexponential Scaling): ').grid(row=len(scalingList)+2,column=0,sticky=tk.W)
         tk.Label(mainWindow, text='Convert to numeric: ').grid(row=len(scalingList)+3,column=0,sticky=tk.W)
-        tk.Label(mainWindow, text='Share axis across: ').grid(row=len(scalingList)+4,column=0,sticky=tk.W)
-        tk.Label(mainWindow, text='Axis limits: ').grid(row=len(scalingList)+5,column=0,sticky=tk.W)
 
         entryList = []
         scalingVariableList = []
         radioButtonList = []
         checkButtonList = []
         checkButtonVarList = []
-        radioButtonList2 = []
-        radioButtonVarList2 = []
         linearRangeScalingList = []
-        limitEntryList = []
         for axis,axisIndex in zip(axisDict[plotType],range(len(axisDict[plotType]))):
             tk.Label(mainWindow, text=axis+ ' Axis').grid(row=0,column=axisIndex+1)
             
@@ -405,41 +393,15 @@ class plotElementsGUIPage(tk.Frame):
             cb.grid(row=len(scalingList)+3,column=axisIndex+1)
             checkButtonList.append(cb)
             checkButtonVarList.append(b)
-       
-            shareWindow = tk.Frame(mainWindow)
-            shareWindow.grid(row=len(scalingList)+4,column=axisIndex+1)
-            shareString = tk.StringVar(value='None')
-            rb2a = tk.Radiobutton(shareWindow,variable=shareString,text='None',value='None')
-            rb2b = tk.Radiobutton(shareWindow,variable=shareString,text=axisSharingList[axisIndex],value=axisSharingList[axisIndex])
-            rb2a.grid(row=0,column=1)
-            rb2b.grid(row=0,column=3)
-            radioButtonList2.append([rb2a,rb2b])
-            radioButtonVarList2.append(shareString)
-
-            limitWindow = tk.Frame(mainWindow)
-            limitWindow.grid(row=len(scalingList)+5,column=axisIndex+1)
-            #ll = tk.Label(limitWindow,text='Lower:').grid(row=0,column=0)
-            e3 = tk.Entry(limitWindow,width=5)
-            e3.grid(row=0,column=1)
-            #ul = tk.Label(limitWindow,text='Upper:').grid(row=0,column=2)
-            e4 = tk.Entry(limitWindow,width=5)
-            e4.grid(row=0,column=3)
-            limitEntryList.append([e3,e4])
-
+        
         def collectInputs():
             plotOptions = {}
             for axis,axisIndex in zip(axisDict[plotType],range(len(axisDict[plotType]))):
-                if radioButtonVarList2[axisIndex].get() == 'None':
-                    share = False
-                else:
-                    share = radioButtonVarList2[axisIndex].get()
                 plotOptions[axis] = {'axisTitle':entryList[axisIndex].get(),
                         'axisScaling':scalingVariableList[axisIndex].get(),
                         'linThreshold':linearRangeScalingList[axisIndex].get(),
-                        'numeric':checkButtonVarList[axisIndex].get(),
-                        'share':share,
-                        'limit':[limitEntryList[axisIndex][0].get(),limitEntryList[axisIndex][1].get()]}
-            subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually = fpl.produceSubsettedDataFrames(experimentDf.stack().to_frame('temp'),fullFigureLevelBooleanList,includeLevelValueList)
+                        'numeric':checkButtonVarList[axisIndex].get()}
+            subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually = fpl.produceSubsettedDataFrames(experimentDf,fullFigureLevelBooleanList,includeLevelValueList)
             fpl.plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually,useModifiedDf,experimentDf,plotOptions,parametersSelected,addDistributionPoints)
             trueLabelDict = {} 
             master.switch_frame(FacetPlottingStartPage,folderName)
