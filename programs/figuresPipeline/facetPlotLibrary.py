@@ -95,8 +95,7 @@ def produceSubsettedDataFrames(fulldf,withinFigureBoolean,specificValueBooleanLi
     if 'Dimension' not in fulldf.columns[0]:
         for i in range(len(actualLevelValueDfList)):
             actualLevelValueDfList[i].columns.name = ''
-    print(actualLevelValueDfList) 
-    print(actualSubsettingCombos) 
+    
     return actualLevelValueDfList,actualSubsettingCombos,figureLevelNames,levelValuesPlottedIndividually
 
 def createFacetPlotName(folderName,dataType,plotType,subPlotType,legendParameterToLevelNameDict,subsettedDfTitle,levelsPlottedIndividually,useModifiedDf,plotOptions):
@@ -273,6 +272,7 @@ def plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,
 
 #Will not be needed when seaborn 0.9.1 releases
 def sanitizeSameValueLevels(plottingDf,kwargs):
+    unsanitizedPlottingDf = plottingDf.copy()
     #First find levels that have values that are the same as other levels:
     #Get numeric axes levels
     numericAxes = []
@@ -302,7 +302,10 @@ def sanitizeSameValueLevels(plottingDf,kwargs):
             newval = value + ' '
             newVals.append(newval)
         plottingDf[overlappingPair[1]] = newVals
-    return plottingDf
+        for kwarg in ['row_order','col_order','hue_order','size_order']:
+            if kwarg in kwargs.keys() and list(pd.unique(unsanitizedPlottingDf[overlappingPair[1]])) == kwargs[kwarg]:
+                kwargs[kwarg] = list(pd.unique(plottingDf[overlappingPair[1]]))
+    return plottingDf,kwargs
 
 def plotSubsettedFigure(subsettedDf,plottingDf,kwargs,facetgridkwargs,plotType,subPlotType,dataType,fullTitleString,plotOptions,subsettedDfTitle,addDistributionPoints,alternateTitle):
 
@@ -311,7 +314,7 @@ def plotSubsettedFigure(subsettedDf,plottingDf,kwargs,facetgridkwargs,plotType,s
     
     #Sanitize plottingDf to have every level value be unique across levels
     if subPlotType != 'heatmap':
-        plottingDf = sanitizeSameValueLevels(plottingDf,kwargs)
+        plottingDf,kwargs = sanitizeSameValueLevels(plottingDf,kwargs)
     
     #Add in sharex/sharey options
     if plotType != '1d':
@@ -363,7 +366,8 @@ def plotSubsettedFigure(subsettedDf,plottingDf,kwargs,facetgridkwargs,plotType,s
 
     #Save figure
     if dataType == 'dr':
-        fullTitleString = alternateTitle
+        fullTitleString = alternateTitle+fullTitleString
+        fullTitleString = fullTitleString[:250]
     fg.fig.savefig('fullyProcessedFigures/'+fullTitleString+'.png',bbox_inches='tight')
     if secondPathBool:
         fg.fig.savefig('../../outputFigures/'+fullTitleString+'.png',bbox_inches='tight')

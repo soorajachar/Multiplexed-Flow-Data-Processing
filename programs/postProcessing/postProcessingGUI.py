@@ -44,7 +44,7 @@ class PostProcessingStartPage(tk.Frame):
         def collectInputs():
             postProcessType = postProcessTypeVar.get()
             if postProcessType == 'dr':
-                master.switch_frame(DimensionReductionHomePage,folderName)
+                master.switch_frame(DimensionReductionHomePage,folderName,PostProcessingStartPage)
         
         def gotoHomePage():
             os.chdir(master.homedirectory)

@@ -84,8 +84,20 @@ def produceSubsettedDataFrames2(fulldf,withinFigureBoolean,specificValueBooleanL
     print(actualSubsettingCombos)
     return actualLevelValueDfList,actualSubsettingCombos,figureLevelNames,levelValuesPlottedIndividually
 
-fulldf = pickle.load(open('../experiments/20190701-TCellNumber_CAR_Timeseries_1/semiProcessedData/cytokineConcentrationPickleFile-20190701-TCellNumber_CAR_Timeseries_1.pkl','rb'))
-withinFigureBoolean = [False, True, True, True]
-specificValueBooleanList = [[True, True, True, True, True, True, True], [True, True, True, True], [True, True, True, True], [True, True, True, True, True, True, True, True, True, True, True, True]]
+#fulldf = pickle.load(open('../experiments/20190701-TCellNumber_CAR_Timeseries_1/semiProcessedData/cytokineConcentrationPickleFile-20190701-TCellNumber_CAR_Timeseries_1.pkl','rb'))
+#withinFigureBoolean = [False, True, True, True]
+#specificValueBooleanList = [[True, True, True, True, True, True, True], [True, True, True, True], [True, True, True, True], [True, True, True, True, True, True, True, True, True, True, True, True]]
+df = pickle.load(open('../experiments/20190701-TCellNumber_CAR_Timeseries_1/postProcessedData/dimensionalReductions/dimensionalReduction-cyt-all.pkl','rb'))
+plottingDf = pickle.load(open('../experiments/20190701-TCellNumber_CAR_Timeseries_1/temp.pkl','rb'))
+plottingDf2 = df.reset_index()
+print(plottingDf)
+print(plottingDf2)
+kwargs = {'row': 'DimensionalReductionMethod', 'row_order': ['TSNE', 'UMAP', 'ISOMAP'], 'hue': 'TCellNumber', 'col': 'TumorCellNumber', 'col_order': ['100K', '50K', '25K', '10K'], 'size': 'Time', 'x': 'Dimension 1', 'y': 'Dimension 2'}
 
-a,b,c,d = produceSubsettedDataFrames2(fulldf.stack().to_frame('temp'),withinFigureBoolean,specificValueBooleanList)
+facetKwargs = {'sharex': False, 'sharey': False} 
+#g = sns.relplot(data=plottingDf,row = 'DimensionalReductionMethod', row_order = ['TSNE', 'UMAP', 'ISOMAP'], hue = 'TCellNumber', col = 'TumorCellNumber', col_order = ['100K', '50K', '25K', '10K'], size = 'Time', x = 'Dimension 1', y = 'Dimension 2',facet_kws={'sharex': False, 'sharey': False},)
+fg = sns.relplot(data=plottingDf,marker='o',kind='scatter',facet_kws=facetKwargs,ci=False,**kwargs)
+plt.show()
+fg = sns.relplot(data=plottingDf2,marker='o',kind='scatter',facet_kws=facetKwargs,ci=False,**kwargs)
+plt.show()
+#a,b,c,d = produceSubsettedDataFrames2(fulldf.stack().to_frame('temp'),withinFigureBoolean,specificValueBooleanList)

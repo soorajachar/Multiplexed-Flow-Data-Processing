@@ -36,9 +36,10 @@ def createLabelDict(df,levelRange):
     return labelDict
 
 class DimensionReductionHomePage(tk.Frame):
-    def __init__(self, master,fName):
-        global folderName
+    def __init__(self, master,fName,shp):
+        global folderName,secondaryhomepage
         folderName = fName
+        secondaryhomepage = shp
         tk.Frame.__init__(self, master)
         mainWindow = tk.Frame(self)
         mainWindow.pack(side=tk.TOP,padx=10,pady=10)
@@ -61,7 +62,8 @@ class DimensionReductionHomePage(tk.Frame):
         buttonWindow.pack(side=tk.TOP,pady=10)
 
         tk.Button(buttonWindow, text="OK",command=lambda: collectInputs()).grid(row=5,column=0)
-        tk.Button(buttonWindow, text="Quit",command=quit).grid(row=5,column=1)
+        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(secondaryhomepage,folderName)).grid(row=5,column=1)
+        tk.Button(buttonWindow, text="Quit",command=quit).grid(row=5,column=2)
 
 class DimensionReductionProcessingPage(tk.Frame):
     def __init__(self, master):
@@ -100,8 +102,8 @@ class DimensionReductionProcessingPage(tk.Frame):
         buttonWindow.pack(side=tk.TOP,pady=10)
 
         tk.Button(buttonWindow, text="OK",command=lambda: collectInputs()).grid(row=5,column=0)
-        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(DimensionReductionHomePage)).grid(row=5,column=1)
-        tk.Button(buttonWindow, text="Quit",command=quit).grid(row=5,column=1)
+        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(DimensionReductionHomePage,secondaryhomepage)).grid(row=5,column=1)
+        tk.Button(buttonWindow, text="Quit",command=quit).grid(row=5,column=2)
 
 class SelectDimensionsPage(tk.Frame):
     def __init__(self, master,fName,dataTypeDfDct):
@@ -170,7 +172,7 @@ class SelectDimensionsPage(tk.Frame):
                     includeLevelValueList.append(tempLevelValueList)
                 dimensionDict[dataType] = includeLevelValueList
             reduceDimensions(dimensionDict,dataTypeDfDict)
-            master.switch_frame(DimensionReductionHomePage,folderName,dataTypeDfDict)
+            master.switch_frame(DimensionReductionHomePage,folderName)
         
         buttonWindow = tk.Frame(self)
         buttonWindow.pack(side=tk.BOTTOM,pady=10)
@@ -269,7 +271,7 @@ class DimensionPlottingPage(tk.Frame):
         buttonWindow.pack(side=tk.BOTTOM,pady=10)
         
         tk.Button(buttonWindow, text="OK",command=lambda: collectInputs()).grid(row=0,column=0)
-        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(DimensionReductionHomePage,folderName)).grid(row=0,column=1)
+        tk.Button(buttonWindow, text="Back",command=lambda: master.switch_frame(DimensionReductionHomePage,folderName,secondaryhomepage)).grid(row=0,column=1)
         tk.Button(buttonWindow, text="Quit",command=lambda: quit()).grid(row=0,column=2)
 
 class selectLevelsPage(tk.Frame):
@@ -441,7 +443,7 @@ class assignLevelsToParametersPage(tk.Frame):
             for axis,axisIndex in zip(axisDict[plotType],range(len(axisDict[plotType]))):
                 plotOptions[axis] = {'axisTitle':fileDf.columns[axisIndex],'axisScaling':'Linear','linThreshold':0,'numeric':False,'share':False,'limit':['','']}
             fpl.plotFacetedFigures(folderName,plotType,subPlotType,dataType,subsettedDfList,subsettedDfListTitles,figureLevels,levelValuesPlottedIndividually,False,fileDf,plotOptions,parametersSelected,False,alternateTitle=fileName.split('.pk')[0])
-            master.switch_frame(DimensionReductionHomePage,folderName) 
+            master.switch_frame(DimensionReductionHomePage,folderName,secondaryhomepage)
         
         buttonWindow = tk.Frame(self)
         buttonWindow.pack(side=tk.TOP,pady=10)

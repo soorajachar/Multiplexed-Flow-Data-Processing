@@ -46,11 +46,7 @@ class checkUncheckAllButton(tk.Button):
 
 class FacetPlottingStartPage(tk.Frame):
     def __init__(self, master,fName):
-        global folderName,figureLevelList,fullFigureLevelBooleanList,includeLevelValueList,parametersSelected
-        figureLevelList = []
-        fullFigureLevelBooleanList = []
-        includeLevelValueList = []
-        parametersSelected = {}
+        global folderName
              
         folderName = fName
         
@@ -163,6 +159,10 @@ class selectLevelsPage(tk.Frame):
         labelWindow = tk.Frame(self)
         labelWindow.pack(side=tk.TOP,padx=10,pady=10)
         
+        global figureLevelList,fullFigureLevelBooleanList
+        fullFigureLevelBooleanList = []
+        figureLevelList = []
+        
         l1 = tk.Label(labelWindow, text="""Which levels names do you want to be included within this figure??:""").pack()
         mainWindow = tk.Frame(self)
         levelNameCheckButtons = []
@@ -212,6 +212,9 @@ class selectLevelsPage(tk.Frame):
 class selectLevelValuesPage(tk.Frame):
     def __init__(self, master):
         tk.Frame.__init__(self, master)
+        
+        global includeLevelValueList
+        includeLevelValueList = []
         
         labelWindow = tk.Frame(self)
         labelWindow.pack(side=tk.TOP,padx=10,fill=tk.X,expand=True)
@@ -284,6 +287,9 @@ class assignLevelsToParametersPage(tk.Frame):
                 '3d':['Row','Column','X Axis Values','Y Axis Values']}
         
         tk.Frame.__init__(self, master)
+            
+        global parametersSelected
+        parametersSelected = {}
         
         mainWindow = tk.Frame(self)
         mainWindow.pack(side=tk.TOP,padx=10,pady=10)
